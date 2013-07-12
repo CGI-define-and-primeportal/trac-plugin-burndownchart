@@ -9,7 +9,7 @@ $(document).ready(function(){
     return formatted_date
   };
 
-  window.burndownchartdata = new Array();
+  window.burndownChartData = new Array();
   for (i in burndowndata) {
     if (i == 'name') {
       var milestone_name = burndowndata['name'];
@@ -27,16 +27,23 @@ $(document).ready(function(){
       var hours_logged = burndowndata['hours_logged'];
     }
     else {
-      burndownchartdata.push(dateFormat(burndowndata[i]));
+      burndownChartData.push(dateFormat(burndowndata[i]));
     }
   }
 
-  var sortedData = burndownchartdata.sort() // To be chronological
+  var sortedData = burndownChartData.sort() // To be chronological
+
+  // Team Effort Data
+
+    window.teamEffort = new Array();
+    for (i in teameffortdata) {
+      teamEffort.push([dateFormat(i), teameffortdata[i]])
+    }
 
   // Render the jqPlot burn down chart
-  var sprint_effort = [[burndowndata['start_date'], total_hours], ['2013-07-25', 10], [burndowndata['end_date'], 0]];
-  var team_effort = [['2013-07-25', burndowndata['hours_logged'], ['2013-07-26', 20]]]
-  var plot1 = $.jqplot('chart1', [sprint_effort, team_effort], {
+  var sprintEffort = [[burndowndata['start_date'], total_hours], ['2013-07-15', 10], [burndowndata['end_date'], 0]];
+  //var team_effort = [['2013-07-25', burndowndata['hours_logged'], ['2013-07-26', 20]]]
+  var plot1 = $.jqplot('chart1', [sprintEffort, teamEffort], {
     //title: burndowndata['name'],
     axesDefaults: {
       tickRenderer: $.jqplot.CanvasAxisTickRenderer ,
