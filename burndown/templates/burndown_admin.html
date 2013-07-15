@@ -7,14 +7,54 @@
       py:strip="">
   <xi:include href="layout.html" />
   <head>
-    <title>Burn Down Chart Admin Page</title>
+    <title>Administration: Burndown Charts</title>
   </head>
   <body>
     <h1>
-      Burn Down Charts Admin Page
+      Manage Burndown Charts
     </h1>
     <div class="box-info">
-      Configure burndown effort unit (hours vs story points) and work days. 
+      Configure the options on this page to modify the way data is displayed 
+      on burndown charts.
+    </div>
+    <div class="box-primary color-none">
+      <form id="burndown" action="" method="post">
+        <fieldset>
+          <div>
+            <label for="units" class="fixed-width-label">Units of Effort</label>
+            <select name="units" form="burndown">
+              <py:for each="unit in unit_options">
+                <py:choose test="">
+                  <py:when test="unit[0] == current_unit_value">
+                    <option selected="selected" value="${unit[0]}">${unit[1]}</option>
+                  </py:when>
+                  <py:otherwise>
+                    <option value="${unit[0]}">${unit[1]}</option>
+                  </py:otherwise>
+                </py:choose>
+              </py:for>
+            </select>
+          </div>
+          <div>
+            <label for="days" class="fixed-width-label">Working Days</label>
+            <select name="days" form="burndown">
+              <py:for each="day in day_options">
+                <py:choose test="">
+                  <py:when test="day[0] == current_day_value">
+                    <option selected="selected" value="${day[0]}">${day[1]}</option>
+                  </py:when>
+                  <py:otherwise>
+                    <option value="${day[0]}">${day[1]}</option>
+                  </py:otherwise>
+                </py:choose>
+              </py:for>
+            </select>
+          </div>
+        </fieldset>
+        <button type="submit" class="btn btn-mini btn-primary" name="burndown_submit" value="Save">
+          <i class="icon-hdd icon-white"></i> Save
+        </button>
+      </form>
     </div>
   </body>
 </html>

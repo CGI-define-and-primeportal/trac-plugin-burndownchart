@@ -47,7 +47,9 @@ setup(
             ],
         },
     entry_points={'trac.plugins':
-                   ['burndown= burndown']},
+                   ['burndown.burndown = burndown.burndown',
+                    'burndown.admin = burndown.admin'
+                   ]},
     install_requires=['Trac', 'Genshi'],
     tests_require=['nose'],
     test_suite='nose.collector',

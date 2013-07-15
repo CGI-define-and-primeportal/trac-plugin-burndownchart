@@ -13,15 +13,13 @@ from trac.ticket import Ticket
 from trachours.hours import TracHoursPlugin
 from trac.ticket.api import ITicketChangeListener
 from trac.util.datefmt import from_utimestamp, to_datetime
-from trac.admin.api import IAdminPanelProvider
-
 
 # Author: Danny Milsom <danny.milsom@cgi.com>
 
 
 class BurnDownCharts(Component):
 
-    implements(IRequestHandler, ITemplateProvider, IRequestFilter, ITicketChangeListener, IAdminPanelProvider)
+    implements(IRequestHandler, ITemplateProvider, IRequestFilter, ITicketChangeListener)
 
     # IRequestHandler methods
 
@@ -57,18 +55,6 @@ class BurnDownCharts(Component):
 
     def get_templates_dirs(self):
         return [pkg_resources.resource_filename(__name__, 'templates')]
-
-    # IAdminPanelProvider
-
-    def get_admin_panels(self, req):
-        if 'LOGIN_ADMIN' in req.perm:
-            yield ('reporting', ('Reporting'),
-           'burndown_charts', ('Burndown Charts'))
-
-    def render_admin_panel(self, req, category, page, path_info):
-        if page == 'burndown_charts':
-            data = {}
-            return 'burndown_admin.html', data
 
     # IRequestFilter methods
 
@@ -288,5 +274,5 @@ class BurnDownCharts(Component):
             work_dates = [date2 for date2 in dates if date2 not in set(blacklisted_dates)]
         non_working_dates = [date2 for date2 in dates if date2 not in set(work_dates)]
 
-        return work_dates, non_work_dates
+        return work_dates, non_working_dates
 
