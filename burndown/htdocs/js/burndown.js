@@ -40,10 +40,15 @@ $(document).ready(function(){
       teamEffort.push([dateFormat(i), teameffortdata[i]])
     }
 
+    window.idealCurve = new Array();
+    for (i in idealcurvedata) {
+      idealCurve.push([dateFormat(i), idealcurvedata[i]])
+    }
+
   // Render the jqPlot burn down chart
   var sprintEffort = [[burndowndata['start_date'], total_hours], ['2013-07-15', 10], [burndowndata['end_date'], 0]];
   //var team_effort = [['2013-07-25', burndowndata['hours_logged'], ['2013-07-26', 20]]]
-  var plot1 = $.jqplot('chart1', [sprintEffort, teamEffort], {
+  var plot1 = $.jqplot('chart1', [sprintEffort, teamEffort, idealCurve], {
     //title: burndowndata['name'],
     axesDefaults: {
       tickRenderer: $.jqplot.CanvasAxisTickRenderer ,
@@ -76,6 +81,7 @@ $(document).ready(function(){
     series:[
             {color:'#5FAB78', label: 'Sprint effort'},
             {label: 'Team effort'},
+            {label: 'Ideal effort'},
            ],
     legend: {
       show: true,

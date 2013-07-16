@@ -3,6 +3,9 @@ from trac.core import *
 from trac.web.chrome import ITemplateProvider, add_notice
 from trac.admin.api import IAdminPanelProvider
 from trac.config import Option
+from trac.ticket import Milestone
+
+# Author: Danny Milsom <danny.milsom@cgi.com>
 
 class BurndownAdmin(Component):
 
@@ -54,6 +57,7 @@ class BurndownAdmin(Component):
                                     ('tickets', 'Tickets')],
                     'current_day_value' : self.day_option,
                     'current_unit_value' : self.unit_option,
+                    'applicable_milestones' : self.milestones_with_start_and_end(),
                     }
 
             return 'burndown_admin.html', data
@@ -66,3 +70,10 @@ class BurndownAdmin(Component):
 
     def get_templates_dirs(self):
         return [pkg_resources.resource_filename(__name__, 'templates')]
+
+    def milestones_with_start_and_end(self):
+        db = self.env.get_db_cnx()
+        milestones = Milestone.select(self.env, 'completed', db)
+
+        return [milestone.name for milestone in milestones \
+                if milestone.start and milestone.due]

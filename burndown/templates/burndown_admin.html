@@ -13,11 +13,9 @@
     <h1>
       Manage Burndown Charts
     </h1>
-    <div class="box-info">
-      Configure the options on this page to modify the way data is displayed 
-      on burndown charts.
-    </div>
     <div class="box-primary color-none">
+        <p>Configure these options to modify the way data is displayed 
+        on burndown charts:</p>
       <form id="burndown" action="" method="post">
         <fieldset>
           <div>
@@ -55,6 +53,15 @@
           <i class="icon-hdd icon-white"></i> Save
         </button>
       </form>
+    </div>
+    <div class="box-info color-none">
+      <p>Burn down charts will only be generated for the following milestones, as 
+      they have both a start and due date:</p>
+      <ul>
+        <py:for each="milestone in applicable_milestones">
+            <li><a href="${req.href.milestone(milestone)}"> ${milestone}</a></li>
+        </py:for>
+      </ul>
     </div>
   </body>
 </html>
