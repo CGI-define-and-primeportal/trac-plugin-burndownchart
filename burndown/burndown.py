@@ -115,6 +115,7 @@ class BurnDownCharts(Component):
                                   'start_date':milestone_start,
                                   'end_date':milestone_due,
                                   'total_hours': total_hours,
+                                  'effort_units': self.unit_value,
                                   }
                               })
 
@@ -148,17 +149,18 @@ class BurnDownCharts(Component):
 
         # Adds JS and jqPlot library needed by burn down charts
         add_script(req, 'burndown/js/burndown.js')
-        add_script(req, 'common/js/jqPlot/jquery.jqplot.js')
+        add_script(req, self.get_jqplot_file('jquery.jqplot'))
         add_stylesheet(req, 'common/js/jqPlot/jquery.jqplot.min.css')
-        add_script(req, 'common/js/jqPlot/plugins/jqplot.dateAxisRenderer.js')
-        add_script(req, 'common/js/jqPlot/plugins/jqplot.highlighter.min.js')
+        add_script(req, self.get_jqplot_file('plugins/jqplot.dateAxisRenderer'))
+        add_script(req, self.get_jqplot_file('plugins/jqplot.highlighter'))
+        add_script(req, self.get_jqplot_file('plugins/jqplot.canvasTextRenderer'))
+        add_script(req, self.get_jqplot_file('plugins/jqplot.canvasAxisTickRenderer'))
         add_script(req,
-                  'common/js/jqPlot/plugins/jqplot.canvasAxisLabelRenderer.js')
+                  self.get_jqplot_file('plugins/jqplot.canvasAxisLabelRenderer'))
 
         return template, data, content_type
 
     # ITemplateProvider methods
-
     def get_htdocs_dirs(self):
         return [('burndown', pkg_resources.resource_filename(__name__,
                                                                 'htdocs'))]
@@ -239,7 +241,7 @@ class BurnDownCharts(Component):
         Also calls the dates_as_strings method first so the returned dict 
         can be passed straight to JSON."""
 
-        work_per_day = float(original_estimate) / len(working_dates)
+        work_per_day = float(original_estimate) / (len(working_dates) -1)
         working_dates_str = self.dates_as_strings(working_dates)
         working_dates_set = set(working_dates_str)
         dates_str = self.dates_as_strings(dates)
@@ -261,3 +263,6 @@ class BurnDownCharts(Component):
         """Returns string representation of all dates in a list"""
 
         return [i.strftime('%Y-%m-%d') for i in dates]
+
+    def get_jqplot_file(self, filename):
+        return "common/js/jqPlot/" + filename + ".js"

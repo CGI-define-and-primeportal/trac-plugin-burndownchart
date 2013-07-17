@@ -26,6 +26,9 @@ $(document).ready(function(){
     else if (i == 'hours_logged') {
       var hours_logged = burndowndata['hours_logged'];
     }
+    else if (i == 'effort_units') {
+      var effort_units = burndowndata['effort_units']
+    }
     else {
       burndownChartData.push(dateFormat(burndowndata[i]));
     }
@@ -51,23 +54,30 @@ $(document).ready(function(){
   var plot1 = $.jqplot('chart1', [sprintEffort, teamEffort, idealCurve], {
     //title: burndowndata['name'],
     axesDefaults: {
-      tickRenderer: $.jqplot.CanvasAxisTickRenderer ,
+      tickRenderer: $.jqplot.CanvasAxisTickRenderer,
       tickOptions: {
-      fontFamily: 'Verdana', // Can't use open sans
-      fontSize: '8pt',
-        }
+        fontFamily: 'Open Sans', // Can't use open sans
+        fontSize: '8pt'
+      },
+      labelOptions: {
+        textColor: '#0066CC',
+        fontFamily: 'Open Sans',
+        fontSize: '10pt',
+        fontWeight: 'normal'
+      }
     },
     axes: {
       xaxis: {
         renderer:$.jqplot.DateAxisRenderer,
         tickOptions:{formatString: '%d %b'},
-        label: 'Days',
+        label: 'Days in Milestone',
         min: burndowndata['start_date'],
         max: burndowndata['end_date'],
       },
       yaxis: {
-        label: 'Effort',
+        label: 'Effort (' + effort_units +')',
         min: 0,
+        labelRenderer: $.jqplot.CanvasAxisLabelRenderer
       }
     }, 
     highlighter: {
@@ -76,12 +86,13 @@ $(document).ready(function(){
       sizeAdjust: 7.5,
       fadeTooltip: true,
       tooltipFadeSpeed: 'fast',
-      formatString: 'Remaing Effort - %y on %d',
+      tooltipAxes: 'xy',
+      formatString: '%s - %s ' + effort_units,
       },
     series:[
             {color:'#5FAB78', label: 'Sprint effort'},
             {label: 'Team effort'},
-            {label: 'Ideal effort'},
+            {label: 'Ideal effort', showMarker: false},
            ],
     legend: {
       show: true,
