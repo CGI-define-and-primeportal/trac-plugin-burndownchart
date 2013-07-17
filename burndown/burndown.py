@@ -11,7 +11,6 @@ from trac.web.api import IRequestFilter
 from trac.ticket.query import Query
 from trac.ticket import Ticket
 from trachours.hours import TracHoursPlugin
-from trac.ticket.api import ITicketChangeListener
 from trac.util.datefmt import from_utimestamp, to_datetime
 from trac.config import Option
 
@@ -26,7 +25,7 @@ class BurnDownCharts(Component):
     day_value = Option('burndown', 'days', 'all',
                     doc="The different days to include in the burndown chart.")
 
-    implements(IRequestHandler, ITemplateProvider, IRequestFilter, ITicketChangeListener)
+    implements(IRequestHandler, ITemplateProvider, IRequestFilter)
 
     # IRequestHandler methods
 
