@@ -1,11 +1,9 @@
 $(document).ready(function(){
 
-  // Expects date as a string in yyyy-mm-dd format. This is then converted
-  // to a JS date object in the same yyyy-mm-dd format for the jqPlot library.
-  window.dateFormat = function(date){
-    split_date = date.split('-');
-    // The month is zero indexed hence -1
-    var formatted_date = $.datepicker.formatDate('yy-mm-dd', new Date(split_date[0], split_date[1] - 1, split_date[2]));
+  // Expects date as a string in yyyy-mm-dd format, with a time added for 
+  // greater accuracy.
+  window.addTime = function(date){
+    var formatted_date = date + ' 12:01AM'
     return formatted_date
   };
 
@@ -30,29 +28,32 @@ $(document).ready(function(){
       var effort_units = burndowndata['effort_units']
     }
     else {
-      burndownChartData.push(dateFormat(burndowndata[i]));
+      burndownChartData.push(addTime(burndowndata[i]));
     }
   }
 
   var sortedData = burndownChartData.sort() // To be chronological
 
   // Team Effort Data
+  window.teamEffort = new Array();
+  for (i in teameffortdata) {
+    teamEffort.push([addTime(i), teameffortdata[i]])
+  }
 
-    window.teamEffort = new Array();
-    for (i in teameffortdata) {
-      teamEffort.push([dateFormat(i), teameffortdata[i]])
-    }
+  // Ideal Curve Data
+  window.idealCurve = new Array();
+  for (i in idealcurvedata) {
+    idealCurve.push([addTime(i), idealcurvedata[i]])
+  }
 
-    window.idealCurve = new Array();
-    for (i in idealcurvedata) {
-      idealCurve.push([dateFormat(i), idealcurvedata[i]])
-    }
+  // Makes the jqPlot resize when the window dimensions change
+  $(window).on('debouncedresize', function() {
+        plot1.replot( { resetAxes: true } );
+  });
 
   // Render the jqPlot burn down chart
   var sprintEffort = [[burndowndata['start_date'], total_hours], ['2013-07-15', 10], [burndowndata['end_date'], 0]];
-  //var team_effort = [['2013-07-25', burndowndata['hours_logged'], ['2013-07-26', 20]]]
   var plot1 = $.jqplot('chart1', [sprintEffort, teamEffort, idealCurve], {
-    //title: burndowndata['name'],
     axesDefaults: {
       tickRenderer: $.jqplot.CanvasAxisTickRenderer,
       tickOptions: {
@@ -71,6 +72,7 @@ $(document).ready(function(){
         renderer:$.jqplot.DateAxisRenderer,
         tickOptions:{formatString: '%d %b'},
         label: 'Days in Milestone',
+        tickInterval:'1 day',
         min: burndowndata['start_date'],
         max: burndowndata['end_date'],
       },
