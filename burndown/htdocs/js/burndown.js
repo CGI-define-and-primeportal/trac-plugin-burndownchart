@@ -56,7 +56,7 @@ $(document).ready(function(){
     axesDefaults: {
       tickRenderer: $.jqplot.CanvasAxisTickRenderer,
       tickOptions: {
-        fontFamily: 'Open Sans', // Can't use open sans
+        fontFamily: 'Open Sans',
         fontSize: '8pt'
       },
       labelOptions: {
