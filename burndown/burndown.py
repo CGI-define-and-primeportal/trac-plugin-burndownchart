@@ -2,11 +2,12 @@ import pkg_resources
 import re
 from datetime import datetime, date, timedelta
 
-from trac.admin.api import IAdminPanelProvider
 from trac.core import *
-from trac.web.chrome import ITemplateProvider, add_script, add_script_data, add_stylesheet
+from trac.web.chrome import ITemplateProvider, add_script, add_script_data, \
+                            add_stylesheet, add_notice
 from trac.web import IRequestHandler
 from trac.ticket import Milestone #in model.py
+from trac.ticket.api import ITicketActionController
 from trac.web.api import IRequestFilter
 from trac.ticket.query import Query
 from trac.ticket import Ticket
@@ -25,7 +26,8 @@ class BurnDownCharts(Component):
     day_value = Option('burndown', 'days', 'all',
                     doc="The different days to include in the burndown chart.")
 
-    implements(IRequestHandler, ITemplateProvider, IRequestFilter)
+    implements(IRequestHandler, ITemplateProvider, IRequestFilter,
+               ITicketActionController)
 
     # IRequestHandler methods
 
@@ -46,10 +48,6 @@ class BurnDownCharts(Component):
                     milestone_info[milestone.name] = (milestone.name)
 
             data = {'milestones': milestone_info}
-
-            # Get Milestone data
-            date = (data.get('milestones')).get('milestone1')
-            start_date = str(date).split(" ")[0]
 
             return 'burndown.html', data, None
 
@@ -74,12 +72,15 @@ class BurnDownCharts(Component):
         # render the burndown chart
         if not milestone.start or not milestone.due:
             data['burndown'] = False # used by the milestone_view.html
-            if not milestone.start:
-                self.log.debug('Not generating burndown chart as %s is missing',
-                                milestone.start)
+            if not milestone.start and not milestone.due:
+                add_notice(req, 'Unable to generate a burndown chart as this \
+                                 milestone has no start or due date')
+            elif not milestone.start:
+                add_notice(req, 'Unable to generate a burndown chart as the \
+                                 milestone start date has not been specified')
             elif not milestone.due:
-                self.log.debug('Not generating burndown chart as %s is missing',
-                                milestone.due)
+                add_notice(req, 'Unable to generate a burndown chart as the \
+                                 milestone due date has not been specified')
             return template, data, content_type
 
         # Get milestone information from data and convert datetime object
@@ -92,17 +93,6 @@ class BurnDownCharts(Component):
 
         # Burn down curve
 
-        # Get ticket hours info using ticket ids and sum the total estimated
-        # hours value for each ticket in the milestone
-        hours = TracHoursPlugin(self.env)
-        total_hours = 0
-        # Query tickets in the milestone
-        query = Query(self.env, constraints={'milestone': [milestone_name]})
-        tickets = [i['id'] for i in query.execute(req)]
-        for i in tickets:
-            ticket = Ticket(self.env, tkt_id=i)
-            total_hours += int(ticket['estimatedhours'])
-
         # Calculate series of dates between a start and end date
         start = milestone.start.date()
         end = date.today() if date.today() <= milestone.due.date() \
@@ -110,39 +100,55 @@ class BurnDownCharts(Component):
         dates = self.dates_inbetween(start, end)
         all_milestone_dates = self.dates_inbetween(start, milestone.due.date())
 
-        add_script_data(req, {'burndowndata':
-                                 {'name': milestone_name,
-                                  'start_date':milestone_start,
-                                  'end_date':milestone_due,
-                                  'total_hours': total_hours,
-                                  'effort_units': self.unit_value,
-                                  }
-                              })
+        # Conntect to database and retrieve the ticket_bi_historical table data
+        # for the appropriate milestone upto today or the milestone date.
 
-        # Team effort curve
-        if self.day_value == 'all':
-            working_dates = dates
-        elif self.day_value == 'weekdays':
-            working_dates, non_working_dates = self.working_days(dates)
-        elif self.day_value == 'custom':
-            working_dates, non_working_dates = self.working_days(dates,
-                                                             blacklisted_dates)
+        #################################################################
+        # TODO
+        # Only query for tickets which are not closed
+        # There us the is_closed() method in ITicketActionController but ideally
+        # we would get a list of all valid closed workflow states
+        ################################################################
+        self.log.debug('Querying the database for historical ticket data')
+        db = self.env.get_db_cnx()
+        cursor = db.cursor()
+        cursor.execute("""
+            SELECT snapshottime,
+            SUM(estimatedhours), SUM(totalhours), SUM(remaininghours)
+            FROM ticket_bi_historical WHERE milestone=%s AND snapshottime >=%s
+            AND snapshottime <=%s AND status != 'closed' GROUP BY snapshottime
+            ORDER BY snapshottime ASC
+            """, [ milestone_name, milestone_start, end])
 
-        # Get hours logged on each day where work_logged is a dictionary of
-        # key/value pairs representing date/seconds logged
-        work_logged = {}
-        for i in working_dates:
+        burndown_series = [(str(i[0]), i[3]) for i in cursor]
+        original_estimate = burndown_series[0][1]
+        add_script_data(req, {'burndowndata': burndown_series})
+        add_script_data(req, {'chartdata': 
+                                {'name':milestone_name,
+                                 'start_date':milestone_start,
+                                 'end_date':milestone_due,
+                                 'effort_units': self.unit_value,
+                                 }
+                            })
+
+        # Team Effort Curve
+        # Get hours logged on each day where work_logged is a list tuples with
+        # key/value pairs representing date/seconds logged. We check all days, 
+        # even if the user has marked weekends as non working days. This
+        # is important to give a true reflection of the teams efforts. 
+        work_logged = []
+        for i in dates:
             date_logged, seconds = self.hours_logged(req, milestone_name, i)
             # date_logged needs to be a string for json
             str_date = date_logged.strftime('%Y-%m-%d')
             # effort needs to be in hours
             hours = seconds/float(60)/float(60)
-            work_logged[str_date] = hours
+            work_logged.append((str_date, hours))
         add_script_data(req, {'teameffortdata': work_logged})
 
         # Ideal Curve
         work_dates, non_work_dates = self.get_date_values(all_milestone_dates)
-        add_script_data(req, {'idealcurvedata':self.ideal_curve(total_hours,
+        add_script_data(req, {'idealcurvedata':self.ideal_curve(original_estimate,
                                                              all_milestone_dates,
                                                              work_dates),
                               })
@@ -160,27 +166,17 @@ class BurnDownCharts(Component):
 
         return template, data, content_type
 
-    # ITemplateProvider methods
-    def get_htdocs_dirs(self):
-        return [('burndown', pkg_resources.resource_filename(__name__,
-                                                                'htdocs'))]
-
-    def get_templates_dirs(self):
-        return [pkg_resources.resource_filename(__name__, 'templates')]
-
     # Other methods for the class
 
-    def hours_logged(self, req, milestone, date):
+    def hours_logged(self, req, milestone_name, date):
         """Returns a integer to represent the total amount of hours
         logged against a group of tickets in a milestone on a certain
         date. Expects a milestone name and datetime object as arguments. 
         This is used to plot the team effort curve"""
 
-        name = milestone
-
         # Get all tickets in the milestone
         hours = TracHoursPlugin(self.env)
-        query = Query(self.env, constraints={'milestone': [name]})
+        query = Query(self.env, constraints={'milestone': [milestone_name]})
         ticket_ids = [i['id'] for i in query.execute(req)]
 
         seconds_logged = 0
@@ -208,17 +204,17 @@ class BurnDownCharts(Component):
             working_dates, non_working_dates = self.working_days(all_dates)
         elif self.day_value == 'custom':
             working_dates, non_working_dates = self.working_days(all_dates,
-                                                             blacklisted_dates)
+                                                            blacklisted_dates)
 
         return working_dates, non_working_dates
 
     def working_days(self, dates, blacklisted_dates=None):
         """Expects a list of datetime objects, and if no blacklisted_dates 
-        is passed removes any dates which fall on a Saturday or Sunday. 
+        are passed removes any dates which fall on a Saturday or Sunday. 
 
         If blacklisted_dates is provided, all dates also in the dates 
         list are removed (note dates which fall on saturday or sunday have
-        to be explicitly included in the blacklisted_dates list.
+        to be explicitly included in the blacklisted_dates list).
 
         Returns two lists, the first listing all working day and the second
         containing all non working days."""
@@ -238,26 +234,21 @@ class BurnDownCharts(Component):
         if the team is to finish all the work in a milestone/sprint by the
         due date, taking into account non working days.
 
-        Also calls the dates_as_strings method first so the returned dict 
+        Also calls the dates_as_strings method first so the returned list 
         can be passed straight to JSON."""
 
         work_per_day = float(original_estimate) / (len(working_dates) -1)
         working_dates_str = self.dates_as_strings(working_dates)
-        working_dates_set = set(working_dates_str)
-        dates_str = self.dates_as_strings(dates)
-        ideal_curve_data = {}
-        remaining_effort = original_estimate
+        ideal_curve_data = []
 
-        for i in reversed(dates_str):
-            if i in working_dates_set:
-                ideal_curve_data[i] = original_estimate - \
-                                  (work_per_day*working_dates_str.index(i))
-                remaining_effort = ideal_curve_data[i]
+        for i, date in enumerate(self.dates_as_strings(dates)):
+            if date in set(working_dates_str):
+                ideal_curve_data.append((date, original_estimate - \
+                                  (work_per_day*working_dates_str.index(date))))
             else:
-                ideal_curve_data[i] = remaining_effort
+                ideal_curve_data.append((date, ideal_curve_data[i-1][1]))
 
         return ideal_curve_data
-
 
     def dates_as_strings(self, dates):
         """Returns string representation of all dates in a list"""
@@ -266,3 +257,17 @@ class BurnDownCharts(Component):
 
     def get_jqplot_file(self, filename):
         return "common/js/jqPlot/" + filename + ".js"
+
+    # ITicketActionController methods
+
+    def is_closed(req, ticket):
+        pass
+
+    # ITemplateProvider methods
+
+    def get_htdocs_dirs(self):
+        return [('burndown', pkg_resources.resource_filename(__name__,
+                                                                'htdocs'))]
+
+    def get_templates_dirs(self):
+        return [pkg_resources.resource_filename(__name__, 'templates')]

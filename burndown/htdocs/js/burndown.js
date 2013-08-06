@@ -7,53 +7,44 @@ $(document).ready(function(){
     return formatted_date
   };
 
-  window.burndownChartData = new Array();
-  for (i in burndowndata) {
-    if (i == 'name') {
-      var milestone_name = burndowndata['name'];
+  // Function which returns a two dimensional array. Each array has a 
+  // date and value, with the value reflecting some kind of work either 
+  // remaining or completed on that day
+  window.dataSeries = function(curvedata){
+    var series_data = new Array;
+    for (var i=0; i < curvedata.length; i++) {
+      series_data.push([addTime(curvedata[i][0]), curvedata[i][1]])
     }
-    else if (i == 'start_date') {
-      var milestone_start = burndowndata['start_date'];
-    }
-    else if (i == 'end_date') {
-      var milestone_end = burndowndata['end_date'];
-    }
-    else if (i == 'total_hours') {
-      var total_hours = burndowndata['total_hours'];
-    }
-    else if (i == 'hours_logged') {
-      var hours_logged = burndowndata['hours_logged'];
-    }
-    else if (i == 'effort_units') {
-      var effort_units = burndowndata['effort_units']
-    }
-    else {
-      burndownChartData.push(addTime(burndowndata[i]));
-    }
-  }
+    return series_data
+  };
 
-  var sortedData = burndownChartData.sort() // To be chronological
-
-  // Team Effort Data
-  window.teamEffort = new Array();
-  for (i in teameffortdata) {
-    teamEffort.push([addTime(i), teameffortdata[i]])
-  }
-
-  // Ideal Curve Data
-  window.idealCurve = new Array();
-  for (i in idealcurvedata) {
-    idealCurve.push([addTime(i), idealcurvedata[i]])
-  }
+  // Curve data needed for jqPlot series
+  var burndowncurve = dataSeries(burndowndata);  // Burndown Data
+  var teameffortcurve = dataSeries(teameffortdata);  // Team Effort Data
+  var idealcurve = dataSeries(idealcurvedata);  // Ideal Curve Data
 
   // Makes the jqPlot resize when the window dimensions change
   $(window).on('debouncedresize', function() {
         plot1.replot( { resetAxes: true } );
   });
 
+  // Calculate the interval between x-axis dates
+  var days_in_milestone = idealcurve.length
+  if (days_in_milestone < 20) {
+    var xaxis_interval = '1 day';
+  }
+  else if (days_in_milestone < 30) {
+    var xasis_interval = '2 days';
+  }
+  else if (days_in_milestone < 40) {
+    var xasis_internval = '1 week';
+  }
+  else if (days_in_milestone > 120) {
+    var xaxis_interval = '1 month'
+  }
+
   // Render the jqPlot burn down chart
-  var sprintEffort = [[burndowndata['start_date'], total_hours], ['2013-07-15', 10], [burndowndata['end_date'], 0]];
-  var plot1 = $.jqplot('chart1', [sprintEffort, teamEffort, idealCurve], {
+  var plot1 = $.jqplot('chart1', [burndowncurve, teameffortcurve, idealcurve], {
     axesDefaults: {
       tickRenderer: $.jqplot.CanvasAxisTickRenderer,
       tickOptions: {
@@ -72,12 +63,12 @@ $(document).ready(function(){
         renderer:$.jqplot.DateAxisRenderer,
         tickOptions:{formatString: '%d %b'},
         label: 'Days in Milestone',
-        tickInterval:'1 day',
-        min: burndowndata['start_date'],
-        max: burndowndata['end_date'],
+        tickInterval:xaxis_interval,
+        min: chartdata['start_date'],
+        max: chartdata['end_date'],
       },
       yaxis: {
-        label: 'Effort (' + effort_units +')',
+        label: 'Effort (' + chartdata['effort_units'] +')',
         min: 0,
         labelRenderer: $.jqplot.CanvasAxisLabelRenderer
       }
@@ -89,10 +80,10 @@ $(document).ready(function(){
       fadeTooltip: true,
       tooltipFadeSpeed: 'fast',
       tooltipAxes: 'xy',
-      formatString: '%s - %s ' + effort_units,
+      formatString: '%s - %s ' + chartdata['effort_units'],
       },
     series:[
-            {color:'#5FAB78', label: 'Sprint effort'},
+            {color:'#5FAB78', label: 'Remaining effort'},
             {label: 'Team effort'},
             {label: 'Ideal effort', showMarker: false},
            ],
