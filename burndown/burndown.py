@@ -232,7 +232,8 @@ class BurnDownCharts(Component):
                    (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
             from ticket_change as c
             join ticket_bi_historical as h on c.ticket = h.id and h.snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
-            where c.field = 'comment'
+            where c.field = 'status'
+            and c.newvalue = 'closed'
             and h.milestone = %s
             and c.time >= %s
             and c.time <= %s
