@@ -169,6 +169,7 @@ class BurnDownCharts(Component):
         add_script(req, self.get_jqplot_file('plugins/jqplot.canvasAxisTickRenderer'))
         add_script(req,
                   self.get_jqplot_file('plugins/jqplot.canvasAxisLabelRenderer'))
+        add_script(req, self.get_jqplot_file('plugins/jqplot.enhancedLegendRenderer'))
 
         return template, data, content_type
 

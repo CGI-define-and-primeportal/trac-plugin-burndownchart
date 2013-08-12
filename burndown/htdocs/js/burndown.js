@@ -41,6 +41,7 @@ $(document).ready(function(){
 
   // Render the jqPlot burn down chart
   var plot1 = $.jqplot('chart1', [idealcurve, burndowncurve, teameffortcurve], {
+    gridPadding: {top:28},
     axesDefaults: {
       tickRenderer: $.jqplot.CanvasAxisTickRenderer,
       tickOptions: {
@@ -101,8 +102,17 @@ $(document).ready(function(){
             },
            ],
     legend: {
-      show: true
+      renderer: $.jqplot.EnhancedLegendRenderer,
+      show: true,
+      placement: 'outside',
+      location: 'n',
+      fontSize: '12px',
+      background: '#DFEEFD',
+      border: 0,
+      rendererOptions: {
+        numberRows: 1
       }
+    }
   });
 
   // Makes the data points clickable, redirecting the user to the timeline
