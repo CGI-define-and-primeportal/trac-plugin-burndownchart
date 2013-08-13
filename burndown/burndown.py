@@ -5,7 +5,7 @@ from datetime import datetime, date, timedelta, time
 from trac.core import *
 from trac.web.chrome import ITemplateProvider, add_script, add_script_data, \
                             add_stylesheet, add_notice
-from trac.web import IRequestHandler
+from trac.web import IRequestHandler, ITemplateStreamFilter
 from trac.ticket import Milestone #in model.py
 from trac.ticket.api import ITicketActionController
 from trac.web.api import IRequestFilter
@@ -16,6 +16,8 @@ from trac.util.datefmt import from_utimestamp, to_datetime, to_utimestamp, to_ti
 from trac.config import Option
 from itertools import groupby
 from operator import itemgetter
+from genshi.filters.transform import Transformer
+from genshi.builder import tag
 
 # Author: Danny Milsom <danny.milsom@cgi.com>
 
@@ -29,7 +31,7 @@ class BurnDownCharts(Component):
                     doc="The different days to include in the burndown chart.")
 
     implements(IRequestHandler, ITemplateProvider, IRequestFilter,
-               ITicketActionController)
+               ITicketActionController, ITemplateStreamFilter)
 
     # IRequestHandler methods
 
@@ -424,6 +426,17 @@ class BurnDownCharts(Component):
 
     def get_jqplot_file(self, filename):
         return "common/js/jqPlot/" + filename + ".js"
+
+    # ITemplateStreamFilter
+    def filter_stream(self, req, method, filename, stream, data):
+        if filename == 'milestone_view.html':
+            if data['burndown']:
+                stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(id_='chart1', class_='box-primary'))
+            else:
+                html_text = 'To generate a burndown chart for this milestone please ensure there is a start and due date set. \
+                This is configurable on the ', tag.a('milestone admin page.', href=req.href.admin('ticket', 'milestones'))
+                stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(html_text, id_='chart1', class_='box-info'))
+        return stream
 
     # ITicketActionController methods
 
