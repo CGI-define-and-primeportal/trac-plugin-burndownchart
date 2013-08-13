@@ -229,6 +229,10 @@ class BurnDownCharts(Component):
         db = self.env.get_db_cnx()
         cursor = db.cursor()
 
+        # This query looks in the history table to see which tickets 
+        # are in the defined milestone for each date (as this list can change 
+        # each day), and then looks to count how many of those tickets are
+        # closed on each date by looking in the ticket_change table
         try:
             cursor.execute("""
                 select count(c.ticket),
