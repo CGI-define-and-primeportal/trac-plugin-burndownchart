@@ -133,8 +133,6 @@ class BurnDownCharts(Component):
             work_logged = self.tickets_closed(milestone_name,
                                                 milestone.start.date(), end, 
                                                 self.dates_as_strings(dates))
-            #print work_logged
-            #import pdb; pdb.set_trace()
 
         elif self.unit_value == 'hours':
             # Remaining Work Curve
@@ -151,6 +149,9 @@ class BurnDownCharts(Component):
         # Pass curve data to JS via JSON
         add_script_data(req, {'burndowndata': burndown_series})
         add_script_data(req, {'teameffortdata': work_logged})
+
+        # Work Added Curve
+        add_script_data(req, {'workaddeddata': self.work_added(burndown_series)})
 
         # Ideal Curve (unit value doesnt matter)
         work_dates, non_work_dates = self.get_date_values(all_milestone_dates)
@@ -289,6 +290,18 @@ class BurnDownCharts(Component):
         return data
 
     def hours_remaining_between_dates(self, cursor, milestone_name, milestone_start, end):
+        """Returns a list of tuples, each with a date and total remaining hours 
+        value for all open tickets in that milestone.
+
+        This data is used for the  burndown graph, if users want to show the 
+        remaining effort burndown on a daily basis for all tickets. As a result 
+        if work is added to the milestone after the start date, it is reflected 
+        in this curve.
+
+        Also note that if a ticket is closed, we consider there to be 0 remaining
+        hours of effort remaining - even if the remaining effort value on the
+        ticket suggests otherwise. This is necessary as if the ticket is closed,
+        it is implied that there is no further work to complete."""
 
         self.log.debug('Querying the database for historical ticket hours data')
         try:
@@ -329,6 +342,18 @@ class BurnDownCharts(Component):
             self.log.error(e)
 
         return [(str(i[0]), i[1]) for i in cursor]
+
+    def work_added(self, effort_data):
+        """Iterates through all the days and remaining effort values shown on 
+        the burndown chart, and calculates if the effort of work has increased.
+        If it has the difference is calculated and placed in a tuple alongside
+        the appropriate date. If remaining work is the same or less, the tuple
+        includes a date and 0 value.""" 
+
+        return [(data[0], 0) if i == 0
+            else (data[0], data[1] - effort_data[i-1][1]) if data[1] > effort_data[i-1][1]
+            else (data[0], 0)
+            for i, data in enumerate(effort_data)]
 
     def dates_inbetween(self, start, end):
         """Returns a list of datetime objects, with each item 

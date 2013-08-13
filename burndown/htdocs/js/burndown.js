@@ -22,6 +22,7 @@ $(document).ready(function(){
   var burndowncurve = dataSeries(burndowndata);  // Burndown Data
   var teameffortcurve = dataSeries(teameffortdata);  // Team Effort Data
   var idealcurve = dataSeries(idealcurvedata);  // Ideal Curve Data
+  var addedcurve = dataSeries(workaddeddata); // Worked Added Data
 
   // Makes the jqPlot resize when the window dimensions change
   $(window).on('debouncedresize', function() {
@@ -40,7 +41,7 @@ $(document).ready(function(){
   }
 
   // Render the jqPlot burn down chart
-  var plot1 = $.jqplot('chart1', [idealcurve, burndowncurve, teameffortcurve], {
+  var plot1 = $.jqplot('chart1', [idealcurve, burndowncurve, teameffortcurve, addedcurve], {
     gridPadding: {top:28},
     axesDefaults: {
       tickRenderer: $.jqplot.CanvasAxisTickRenderer,
@@ -100,6 +101,12 @@ $(document).ready(function(){
               color: '#FFD600',
               shadow: false
             },
+            {
+              label:'Work added',
+              showMarker: false,
+              color: '#0066CC',
+              shadow: false
+            }
            ],
     legend: {
       renderer: $.jqplot.EnhancedLegendRenderer,
