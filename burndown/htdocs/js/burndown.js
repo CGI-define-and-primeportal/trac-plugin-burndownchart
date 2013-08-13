@@ -43,6 +43,9 @@ $(document).ready(function(){
   // Render the jqPlot burn down chart
   var plot1 = $.jqplot('chart1', [idealcurve, burndowncurve, teameffortcurve, addedcurve], {
     gridPadding: {top:28},
+    grid: {
+      shadow: false
+    },
     axesDefaults: {
       tickRenderer: $.jqplot.CanvasAxisTickRenderer,
       tickOptions: {
