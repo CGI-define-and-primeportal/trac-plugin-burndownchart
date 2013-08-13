@@ -228,18 +228,24 @@ class BurnDownCharts(Component):
 
         db = self.env.get_db_cnx()
         cursor = db.cursor()
-        cursor.execute("""
-            select count(c.ticket),
-                   (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
-            from ticket_change as c
-            join ticket_bi_historical as h on c.ticket = h.id and h.snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
-            where c.field = 'status'
-            and c.newvalue = 'closed'
-            and h.milestone = %s
-            and c.time >= %s
-            and c.time <= %s
-            group by day;
-            """, [ milestone_name, start_stamp, end_stamp ])
+
+        try:
+            cursor.execute("""
+                select count(c.ticket),
+                       (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
+                from ticket_change as c
+                join ticket_bi_historical as h on c.ticket = h.id and h.snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
+                where c.field = 'status'
+                and c.newvalue = 'closed'
+                and h.milestone = %s
+                and c.time >= %s
+                and c.time <= %s
+                group by day;
+                """, [ milestone_name, start_stamp, end_stamp ])
+        except Exception, e:
+            db.rollback()
+            self.log.error('Unable to query the historical ticket table')
+            self.log.error(e)
 
         closure_dates = [(i[1].strftime('%Y-%m-%d'), int(i[0])) for i in cursor]
 
@@ -258,15 +264,19 @@ class BurnDownCharts(Component):
 
         db = self.env.get_db_cnx()
         cursor = db.cursor()
-        cursor.execute("""
-            SELECT snapshottime, id
-            FROM ticket_bi_historical WHERE milestone=%s AND snapshottime >=%s
-            AND snapshottime <=%s ORDER BY snapshottime ASC
-            """, [ milestone_name, milestone_start, end])
+        try:
+            cursor.execute("""
+                SELECT snapshottime, id
+                FROM ticket_bi_historical WHERE milestone=%s AND snapshottime >=%s
+                AND snapshottime <=%s ORDER BY snapshottime ASC
+                """, [ milestone_name, milestone_start, end])
+        except Exception, e:
+            db.rollback()
+            self.log.error('Unable to query the historical ticket table')
+            self.log.error(e)
 
-        milestone_tickets = [(i) for i in cursor]
         data = {}
-        for key, ticket in groupby(milestone_tickets, itemgetter(0)):
+        for key, ticket in groupby(cursor, itemgetter(0)):
             data[key] = set([])
             for i in ticket:
                 data[key].update([i[1]]) 
@@ -277,13 +287,18 @@ class BurnDownCharts(Component):
     def hours_remaining_between_dates(self, cursor, milestone_name, milestone_start, end):
 
         self.log.debug('Querying the database for historical ticket hours data')
-        cursor.execute("""
-            SELECT snapshottime,
-            SUM(estimatedhours), SUM(totalhours), SUM(remaininghours)
-            FROM ticket_bi_historical WHERE milestone=%s AND snapshottime >=%s
-            AND snapshottime <=%s AND status != 'closed' GROUP BY snapshottime
-            ORDER BY snapshottime ASC
-            """, [ milestone_name, milestone_start, end])
+        try:
+            cursor.execute("""
+                SELECT snapshottime,
+                SUM(estimatedhours), SUM(totalhours), SUM(remaininghours)
+                FROM ticket_bi_historical WHERE milestone=%s AND snapshottime >=%s
+                AND snapshottime <=%s AND status != 'closed' GROUP BY snapshottime
+                ORDER BY snapshottime ASC
+                """, [ milestone_name, milestone_start, end])
+        except Exception, e:
+            db.rollback()
+            self.log.error('Unable to query the historical ticket table')
+            self.log.error(e)
 
         return [(str(i[0]), i[3]) for i in cursor]
 
@@ -297,12 +312,17 @@ class BurnDownCharts(Component):
         value."""
 
         self.log.debug('Querying the database for historical tickets open data')
-        cursor.execute("""
-            SELECT snapshottime, COUNT(DISTINCT id) FROM ticket_bi_historical
-            WHERE milestone=%s AND snapshottime>=%s AND snapshottime <=%s 
-            AND status!='closed' 
-            GROUP BY snapshottime ORDER BY snapshottime ASC
-            """,[ milestone_name, milestone_start, end_date])
+        try:
+            cursor.execute("""
+                SELECT snapshottime, COUNT(DISTINCT id) FROM ticket_bi_historical
+                WHERE milestone=%s AND snapshottime>=%s AND snapshottime <=%s 
+                AND status!='closed' 
+                GROUP BY snapshottime ORDER BY snapshottime ASC
+                """,[ milestone_name, milestone_start, end_date])
+        except Exception, e:
+            db.rollback()
+            self.log.error('Unable to query the historical ticket table')
+            self.log.error(e)
 
         return [(str(i[0]), i[1]) for i in cursor]
 
