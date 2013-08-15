@@ -52,7 +52,7 @@ setup(
                    ]},
     install_requires=['Trac', 'Genshi',
                       'ComponentDependencyPlugin',
-                      'businessintellegneceplugin',
+                      'businessintelligenceplugin',
                       ],
     tests_require=['nose'],
     test_suite='nose.collector',
