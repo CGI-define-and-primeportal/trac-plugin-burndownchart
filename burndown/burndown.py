@@ -5,19 +5,18 @@ from datetime import datetime, date, timedelta, time
 from trac.core import *
 from trac.web.chrome import ITemplateProvider, add_script, add_script_data, \
                             add_stylesheet, add_notice
-from trac.web import IRequestHandler, ITemplateStreamFilter
-from trac.ticket import Milestone #in model.py
+from trac.web import ITemplateStreamFilter
 from trac.ticket.api import ITicketActionController
 from trac.web.api import IRequestFilter
-from trac.ticket.query import Query
-from trac.ticket import Ticket
-from trachours.hours import TracHoursPlugin
-from trac.util.datefmt import from_utimestamp, to_datetime, to_utimestamp, to_timestamp, utc
+from trac.util.datefmt import to_utimestamp, utc
 from trac.config import Option
 from itertools import groupby
 from operator import itemgetter
 from genshi.filters.transform import Transformer
 from genshi.builder import tag
+from trac.env import IEnvironmentSetupParticipant
+from componentdependencies import IRequireComponents
+from businessintelligenceplugin.history import HistoryStorageSystem
 
 # Author: Danny Milsom <danny.milsom@cgi.com>
 
@@ -30,30 +29,9 @@ class BurnDownCharts(Component):
     day_value = Option('burndown', 'days', 'all',
                     doc="The different days to include in the burndown chart.")
 
-    implements(IRequestHandler, ITemplateProvider, IRequestFilter,
-               ITicketActionController, ITemplateStreamFilter)
-
-    # IRequestHandler methods
-
-    def match_request(self, req):
-        if re.match('/burndown', req.path_info):
-            return True
-
-    def process_request(self, req):
-        if 'ROADMAP_VIEW' in req.perm:
-
-            # Milestone is in model.py of trac/tickets
-            db = self.env.get_db_cnx()
-            milestones = Milestone.select(self.env, 'completed', db)
-
-            milestone_info = dict()
-            for milestone in milestones:
-                if milestone.start and milestone.due:
-                    milestone_info[milestone.name] = (milestone.name)
-
-            data = {'milestones': milestone_info}
-
-            return 'burndown.html', data, None
+    implements(ITemplateProvider, IRequestFilter,
+               ITicketActionController, ITemplateStreamFilter,
+               IRequireComponents, IEnvironmentSetupParticipant)
 
     # IRequestFilter methods
 
@@ -87,15 +65,12 @@ class BurnDownCharts(Component):
                                  milestone due date has not been specified')
             return template, data, content_type
 
-        # Get milestone information from data and convert datetime object
-        # to string representation of a date object
+        # Get milestone information from data
         self.log.debug('Collecting data for burndown chart')
         data['burndown'] = True
         milestone_name = milestone.name
         milestone_start = str(milestone.start.date())
         milestone_due = str(milestone.due.date())
-
-        # Burn down curve
 
         # Calculate series of dates between a start and end date
         start = milestone.start.date()
@@ -105,57 +80,49 @@ class BurnDownCharts(Component):
         all_milestone_dates = self.dates_inbetween(start, milestone.due.date())
 
         add_script_data(req, {'chartdata': 
-                                {'name':milestone_name,
-                                 'start_date':milestone_start,
-                                 'end_date':milestone_due,
-                                 'effort_units':self.unit_value,
-                                 'timeline_url':req.href.timeline(daysback=0,
+                                {'name': milestone_name,
+                                 'start_date': milestone_start,
+                                 'end_date': milestone_due,
+                                 'effort_units': self.unit_value,
+                                 'timeline_url': req.href.timeline(daysback=0,
                                               ticket='on', ticket_details='on')
                                  }
                             })
 
-        # Conntect to database and retrieve the ticket_bi_historical table data
-        # for the appropriate milestone upto today or the milestone date.
+        self.log.debug('Connecting to the database to retrieve chart data')
+        db = self.env.get_read_db()
 
-        #################################################################
-        # TODO
-        # Only query for tickets which are not closed
-        # There us the is_closed() method in ITicketActionController but ideally
-        # we would get a list of all valid closed workflow states
-        ################################################################
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
-
+        # Remaining Effort (aka burndown) Curve
         if self.unit_value == 'tickets':
             # Remaining Work Curve
-            burndown_series = self.tickets_open_between_dates(cursor, 
+            burndown_series = self.tickets_open_between_dates(db, 
                                           milestone_name, milestone_start, end)
-            original_estimate = burndown_series[0][1]
-            # Team Effort Curve
-            work_logged = self.tickets_closed(milestone_name,
-                                                milestone.start.date(), end, 
-                                                self.dates_as_strings(dates))
-
         elif self.unit_value == 'hours':
             # Remaining Work Curve
-            burndown_series = self.hours_remaining_between_dates(cursor, 
+            burndown_series = self.hours_remaining_between_dates(db, 
                                           milestone_name, milestone_start, end)
-            original_estimate = burndown_series[0][1]
-            # Team Effort Curve
-            work_logged = self.team_effort_in_hours_curve(req, milestone_name, 
-                                                                         dates)
-
         elif self.unit_value == 'story points':
             pass # do something
 
-        # Pass curve data to JS via JSON
+        # If we don't have any burndown data, exit and render normal milestone_view page
+        if not burndown_series:
+            data['burndown'] = False # Needed for stream filter
+            return template, data, content_type
+
         add_script_data(req, {'burndowndata': burndown_series})
-        add_script_data(req, {'teameffortdata': work_logged})
 
         # Work Added Curve
         add_script_data(req, {'workaddeddata': self.work_added(burndown_series)})
 
+        # Team Effort Curve
+        work_logged = self.work_logged_curve(self.unit_value, milestone_name,
+                                                milestone.start.date(), end, 
+                                                self.dates_as_strings(dates))
+        add_script_data(req, {'teameffortdata': work_logged})
+
         # Ideal Curve (unit value doesnt matter)
+        original_estimate = burndown_series[0][1]
+
         work_dates, non_work_dates = self.get_date_values(all_milestone_dates)
         add_script_data(req, {'idealcurvedata':self.ideal_curve(original_estimate,
                                                              all_milestone_dates,
@@ -178,44 +145,62 @@ class BurnDownCharts(Component):
 
     # Other methods for the class
 
-    def team_effort_in_hours_curve(self, req, milestone_name, dates):
-        """Get hours logged on each day where work_logged is a list of 
-        tuples with key/value pairs representing date/seconds logged. 
-        
-        We check all days even if the user has marked weekends as non 
-        working days. This is important to give a true reflection of the 
-        teams efforts."""
+    def work_logged_curve(self, metric, milestone_name, milestone_start, end, dates):
+        """Returns a list of tuples, each representing the total number
+        of tickets closed on each day for a respective milestone. If no
+        tickets are closed, a tuple for that date will still be alongside
+        included a 0 value."""
 
-        work_logged = []
-        for date in dates:
-            date_logged, seconds = self.hours_logged(req, milestone_name, date)
-            # date_logged needs to be a string for json
-            str_date = date_logged.strftime('%Y-%m-%d')
-            # effort needs to be in hours
-            hours = seconds/float(60)/float(60)
-            work_logged.append((str_date, hours))
+        # Convert milestone start and end dates to timestamps
+        start_stamp = to_utimestamp(datetime.combine(milestone_start,
+                                            time(hour=0,minute=00,tzinfo=utc)))
+        end_stamp = to_utimestamp(datetime.combine(end,
+                                           time(hour=23,minute=59,tzinfo=utc)))
 
-        return work_logged
+        db = self.env.get_read_db()
+        cursor = db.cursor()
 
-    def hours_logged(self, req, milestone_name, date):
-        """Returns a integer to represent the total amount of hours
-        logged against a group of tickets in a milestone on a certain
-        date. Expects a milestone name and datetime object as arguments. 
-        This is used to plot the team effort curve"""
+        # This query looks in the history table to see which tickets 
+        # are in the defined milestone for each date (as this list can change 
+        # each day), and then looks to count how many of those tickets are
+        # closed on each date by looking in the ticket_change table
+        try:
+            if metric == 'tickets':
+                cursor.execute("""
+                    select count(c.ticket),
+                           (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
+                    from ticket_change as c
+                    join ticket_bi_historical as h on c.ticket = h.id and h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
+                    where c.field = 'status'
+                    and c.newvalue = 'closed'
+                    and h.milestone = %s
+                    and c.time >= %s
+                    and c.time <= %s
+                    group by day;
+                    """, [ milestone_name, start_stamp, end_stamp ])
+            elif metric == 'hours':
+                cursor.execute("""
+                    select sum(t.seconds_worked),
+                           (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date as day
+                    from ticket_time as t
+                    join ticket_bi_historical as h on t.ticket = h.id and h._snapshottime = (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date 
+                    and h.milestone = %s
+                    group by day;
+                    """, [ milestone_name ])
+        except Exception:
+            db.rollback()
+            self.log.exception('Unable to query the historical ticket table')
+            return []
 
-        # Get all tickets in the milestone
-        hours = TracHoursPlugin(self.env)
-        query = Query(self.env, constraints={'milestone': [milestone_name]})
-        ticket_ids = [i['id'] for i in query.execute(req)]
+        if metric == 'tickets':
+            work_per_date = [(i[1].strftime('%Y-%m-%d'), int(i[0])) for i in cursor]
+        elif metric == 'hours':
+            work_per_date = [(i[1].strftime('%Y-%m-%d'), int(i[0])/float(60)/float(60)) for i in cursor]
 
-        seconds_logged = 0
-        for ticket_id in ticket_ids:
-            time_logged = hours.get_ticket_hours(ticket_id, from_date=date,
-                                            to_date=date + timedelta(days=1))
-            for i in time_logged:
-                seconds_logged += i['seconds_worked']
-
-        return date, seconds_logged
+        # Add missing dates from milestone where no tickets were closed
+        set_of_dates = set([i[0] for i in work_per_date])
+        missing_dates = [(date, 0) for date in dates if date not in set_of_dates]
+        return work_per_date + missing_dates
 
     def tickets_closed(self, milestone_name, milestone_start, end, dates):
         """Returns a list of tuples, each representing the total number
@@ -229,7 +214,7 @@ class BurnDownCharts(Component):
         end_stamp = to_utimestamp(datetime.combine(end,
                                            time(hour=23,minute=59,tzinfo=utc)))
 
-        db = self.env.get_db_cnx()
+        db = self.env.get_read_db()
         cursor = db.cursor()
 
         # This query looks in the history table to see which tickets 
@@ -241,7 +226,7 @@ class BurnDownCharts(Component):
                 select count(c.ticket),
                        (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
                 from ticket_change as c
-                join ticket_bi_historical as h on c.ticket = h.id and h.snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
+                join ticket_bi_historical as h on c.ticket = h.id and h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
                 where c.field = 'status'
                 and c.newvalue = 'closed'
                 and h.milestone = %s
@@ -249,10 +234,10 @@ class BurnDownCharts(Component):
                 and c.time <= %s
                 group by day;
                 """, [ milestone_name, start_stamp, end_stamp ])
-        except Exception, e:
+        except Exception:
             db.rollback()
-            self.log.error('Unable to query the historical ticket table')
-            self.log.error(e)
+            self.log.exception('Unable to query the historical ticket table')
+            return []
 
         closure_dates = [(i[1].strftime('%Y-%m-%d'), int(i[0])) for i in cursor]
 
@@ -264,23 +249,66 @@ class BurnDownCharts(Component):
 
         return closure_dates
 
+    def hours_logged_each_day(self, milestone_name, milestone_start, end, dates):
+        """Returns a list of tuples, each representing the total number
+        of hours logged against the ticket in a milestone for a given day.
+        If no hours are logged on a day, a tuple for that date will still be included
+        alongside a 0 value."""
+
+        # Convert milestone start and end dates to timestamps
+        start_stamp = to_utimestamp(datetime.combine(milestone_start,
+                                            time(hour=0,minute=00,tzinfo=utc)))
+        end_stamp = to_utimestamp(datetime.combine(end,
+                                           time(hour=23,minute=59,tzinfo=utc)))
+
+        db = self.env.get_read_db()
+        cursor = db.cursor()
+
+        # This query looks in the history table to see which tickets 
+        # are in the defined milestone for each date (as this list can change 
+        # each day), and then looks to sum the work logged for each ticket 
+        # in that milestone per day.
+        try:
+            cursor.execute("""
+                select sum(t.seconds_worked),
+                       (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date as day
+                from ticket_time as t
+                join ticket_bi_historical as h on t.ticket = h.id and h._snapshottime = (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date 
+                and h.milestone = %s
+                group by day;
+                """, [ milestone_name ])
+        except Exception:
+            db.rollback()
+            self.log.exception('Unable to query the historical ticket table') #self.log.exception
+            return []
+
+        hours_per_date = [(i[1].strftime('%Y-%m-%d'), int(i[0])/float(60)/float(60)) for i in cursor]
+
+        # Add missing dates from milestone where no tickets were closed
+        set_of_hours_per_date = set([i[0] for i in hours_per_date])
+        for date in dates:
+            if date not in set_of_hours_per_date:
+                hours_per_date.append((date, 0))
+
+        return hours_per_date
+
     def tickets_in_milestone(self, milestone_name, milestone_start, end):
         """Returns a dictionary where the keys are dates between the 
         milestone start and end date arguments, and the associated value is 
         a set of all ticket ids within the milestone on that date."""
 
-        db = self.env.get_db_cnx()
+        db = self.env.get_read_db()
         cursor = db.cursor()
         try:
             cursor.execute("""
-                SELECT snapshottime, id
-                FROM ticket_bi_historical WHERE milestone=%s AND snapshottime >=%s
-                AND snapshottime <=%s ORDER BY snapshottime ASC
+                SELECT _snapshottime, id
+                FROM ticket_bi_historical WHERE milestone=%s AND _snapshottime >=%s
+                AND _snapshottime <=%s ORDER BY _snapshottime ASC
                 """, [ milestone_name, milestone_start, end])
-        except Exception, e:
+        except Exception:
             db.rollback()
-            self.log.error('Unable to query the historical ticket table')
-            self.log.error(e)
+            self.log.exception('Unable to query the historical ticket table')
+            return []
 
         data = {}
         for key, ticket in groupby(cursor, itemgetter(0)):
@@ -291,7 +319,7 @@ class BurnDownCharts(Component):
 
         return data
 
-    def hours_remaining_between_dates(self, cursor, milestone_name, milestone_start, end):
+    def hours_remaining_between_dates(self, db, milestone_name, milestone_start, end):
         """Returns a list of tuples, each with a date and total remaining hours 
         value for all open tickets in that milestone.
 
@@ -306,22 +334,23 @@ class BurnDownCharts(Component):
         it is implied that there is no further work to complete."""
 
         self.log.debug('Querying the database for historical ticket hours data')
+        cursor = db.cursor()
         try:
             cursor.execute("""
-                SELECT snapshottime,
+                SELECT _snapshottime,
                 SUM(estimatedhours), SUM(totalhours), SUM(remaininghours)
-                FROM ticket_bi_historical WHERE milestone=%s AND snapshottime >=%s
-                AND snapshottime <=%s AND status != 'closed' GROUP BY snapshottime
-                ORDER BY snapshottime ASC
+                FROM ticket_bi_historical WHERE milestone=%s AND _snapshottime >=%s
+                AND _snapshottime <=%s AND status != 'closed' GROUP BY _snapshottime
+                ORDER BY _snapshottime ASC
                 """, [ milestone_name, milestone_start, end])
-        except Exception, e:
+        except Exception:
             db.rollback()
-            self.log.error('Unable to query the historical ticket table')
-            self.log.error(e)
+            self.log.exception('Unable to query the historical ticket table')
+            return []
 
         return [(str(i[0]), i[3]) for i in cursor]
 
-    def tickets_open_between_dates(self, cursor, milestone_name, milestone_start, end_date):
+    def tickets_open_between_dates(self, db, milestone_name, milestone_start, end_date):
         """Returns a list of tuples, each with a date and value to represent 
         the total amount of tickets open for that milestone on a given date.
 
@@ -331,17 +360,18 @@ class BurnDownCharts(Component):
         value."""
 
         self.log.debug('Querying the database for historical tickets open data')
+        cursor = db.cursor()
         try:
             cursor.execute("""
-                SELECT snapshottime, COUNT(DISTINCT id) FROM ticket_bi_historical
-                WHERE milestone=%s AND snapshottime>=%s AND snapshottime <=%s 
+                SELECT _snapshottime, COUNT(DISTINCT id) FROM ticket_bi_historical
+                WHERE milestone=%s AND _snapshottime>=%s AND _snapshottime <=%s 
                 AND status!='closed' 
-                GROUP BY snapshottime ORDER BY snapshottime ASC
+                GROUP BY _snapshottime ORDER BY _snapshottime ASC
                 """,[ milestone_name, milestone_start, end_date])
-        except Exception, e:
+        except Exception:
             db.rollback()
-            self.log.error('Unable to query the historical ticket table')
-            self.log.error(e)
+            self.log.exception('Unable to query the historical ticket table')
+            return []
 
         return [(str(i[0]), i[1]) for i in cursor]
 
@@ -408,16 +438,11 @@ class BurnDownCharts(Component):
 
         work_per_day = float(original_estimate) / (len(working_dates) -1)
         working_dates_str = self.dates_as_strings(working_dates)
-        ideal_curve_data = []
 
-        for i, date in enumerate(self.dates_as_strings(dates)):
-            if date in set(working_dates_str):
-                ideal_curve_data.append((date, original_estimate - \
-                                  (work_per_day*working_dates_str.index(date))))
-            else:
-                ideal_curve_data.append((date, ideal_curve_data[i-1][1]))
-
-        return ideal_curve_data
+        return [(date, original_estimate - (work_per_day*working_dates_str.index(date)))
+          if date in set(working_dates_str)
+          else (date, ideal_curve_data[i-1][1])
+          for i, date in enumerate(self.dates_as_strings(dates))]
 
     def dates_as_strings(self, dates):
         """Returns string representation of all dates in a list"""
@@ -434,7 +459,8 @@ class BurnDownCharts(Component):
                 stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(id_='chart1', class_='box-primary'))
             else:
                 html_text = 'To generate a burndown chart for this milestone please ensure there is a start and due date set. \
-                This is configurable on the ', tag.a('milestone admin page.', href=req.href.admin('ticket', 'milestones'))
+                This is configurable on the ', tag.a('milestone admin page. ', href=req.href.admin('ticket', 'milestones')), \
+                'Please also check that the businessintelligenceplugin is enabled.'
                 stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(html_text, id_='chart1', class_='box-info'))
         return stream
 
@@ -451,3 +477,18 @@ class BurnDownCharts(Component):
 
     def get_templates_dirs(self):
         return [pkg_resources.resource_filename(__name__, 'templates')]
+
+    # IRequireComponents methods
+
+    def requires(self):
+        return [HistoryStorageSystem]
+
+    # IEnvironmentSetupParticipant methods
+    def environment_created(self):
+        pass
+
+    def environment_needs_upgrade(self, db):
+        pass
+
+    def upgrade_environment(self, db):
+        pass

@@ -50,7 +50,10 @@ setup(
                    ['burndown.burndown = burndown.burndown',
                     'burndown.admin = burndown.admin'
                    ]},
-    install_requires=['Trac', 'Genshi'],
+    install_requires=['Trac', 'Genshi',
+                      'ComponentDependencyPlugin',
+                      'businessintellegneceplugin',
+                      ],
     tests_require=['nose'],
     test_suite='nose.collector',
 )
