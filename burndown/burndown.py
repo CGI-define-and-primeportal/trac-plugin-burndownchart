@@ -438,11 +438,16 @@ class BurnDownCharts(Component):
 
         work_per_day = float(original_estimate) / (len(working_dates) -1)
         working_dates_str = self.dates_as_strings(working_dates)
+        ideal_data = []
 
-        return [(date, original_estimate - (work_per_day*working_dates_str.index(date)))
-          if date in set(working_dates_str)
-          else (date, ideal_curve_data[i-1][1])
-          for i, date in enumerate(self.dates_as_strings(dates))]
+        for i, date in enumerate(self.dates_as_strings(dates)):
+            if date in set(working_dates_str):
+                ideal_data.append((date, original_estimate - 
+                                (work_per_day*working_dates_str.index(date))))
+            else:
+                ideal_data.append((date, ideal_data[i-1][1]))
+
+        return ideal_data
 
     def dates_as_strings(self, dates):
         """Returns string representation of all dates in a list"""
