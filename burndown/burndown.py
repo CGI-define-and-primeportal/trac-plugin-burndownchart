@@ -176,37 +176,42 @@ class BurnDownCharts(Component):
         try:
             if metric == 'tickets':
                 cursor.execute("""
-                    select count(c.ticket),
-                           (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
-                    from ticket_change as c
-                    join ticket_bi_historical as h on c.ticket = h.id and h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
-                    where c.field = 'status'
-                    and c.newvalue = 'closed'
-                    and h.milestone = %s
-                    and c.time >= %s
-                    and c.time <= %s
-                    group by day;
+                    SELECT COUNT(c.ticket),
+                        (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
+                    FROM ticket_change AS c
+                    JOIN ticket_bi_historical AS h
+                        ON c.ticket = h.id
+                        AND h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
+                    WHERE c.field = 'status'
+                        AND c.newvalue = 'closed'
+                        AND h.milestone = %s
+                        AND c.time >= %s
+                        AND c.time <= %s
+                    GROUP BY day;
                     """, [ milestone_name, start_stamp, end_stamp ])
             elif metric == 'hours':
                 cursor.execute("""
-                    select sum(t.seconds_worked),
-                           (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date as day
-                    from ticket_time as t
-                    join ticket_bi_historical as h on t.ticket = h.id and h._snapshottime = (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date 
-                    and h.milestone = %s
-                    group by day;
+                    SELECT SUM(t.seconds_worked),
+                        (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date as day
+                    FROM ticket_time AS t
+                    JOIN ticket_bi_historical AS h
+                        ON t.ticket = h.id
+                        AND h._snapshottime = (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date
+                    WHERE h.milestone = %s
+                    GROUP BY day;
                     """, [ milestone_name ])
             elif metric == 'story_points':
                 cursor.execute("""
-                    select sum(h.effort), h._snapshottime
-                    from ticket_bi_historical as h
-                    join ticket_change as c on h.id = c.ticket and h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
-                    where c.field = 'status'
-                    and c.newvalue = 'closed'
-                    and h.milestone = %s
-                    and c.time >= %s
-                    and c.time <= %s
-                    group by day;
+                    SELECT SUM(h.effort), h._snapshottime
+                    FROM ticket_bi_historical AS h
+                    JOIN ticket_change AS c ON h.id = c.ticket
+                        AND h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
+                    WHERE c.field = 'status'
+                        AND c.newvalue = 'closed'
+                        AND h.milestone = %s
+                        AND c.time >= %s
+                        AND c.time <= %s
+                    GROUP BY day;
                     """, [ milestone_name, start_stamp, end_stamp ])
         except Exception:
             db.rollback()
@@ -246,16 +251,18 @@ class BurnDownCharts(Component):
         # closed on each date by looking in the ticket_change table
         try:
             cursor.execute("""
-                select count(c.ticket),
+                SELECT count(c.ticket),
                        (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
-                from ticket_change as c
-                join ticket_bi_historical as h on c.ticket = h.id and h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
-                where c.field = 'status'
-                and c.newvalue = 'closed'
-                and h.milestone = %s
-                and c.time >= %s
-                and c.time <= %s
-                group by day;
+                FROM ticket_change AS c
+                JOIN ticket_bi_historical AS h
+                    ON c.ticket = h.id
+                    AND h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
+                WHERE c.field = 'status'
+                    AND c.newvalue = 'closed'
+                    AND h.milestone = %s
+                    AND c.time >= %s
+                    AND c.time <= %s
+                GROUP BY day;
                 """, [ milestone_name, start_stamp, end_stamp ])
         except Exception:
             db.rollback()
@@ -293,12 +300,14 @@ class BurnDownCharts(Component):
         # in that milestone per day.
         try:
             cursor.execute("""
-                select sum(t.seconds_worked),
+                SELECT SUM(t.seconds_worked),
                        (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date as day
-                from ticket_time as t
-                join ticket_bi_historical as h on t.ticket = h.id and h._snapshottime = (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date 
-                and h.milestone = %s
-                group by day;
+                FROM ticket_time AS t
+                JOIN ticket_bi_historical AS h
+                    ON t.ticket = h.id
+                    AND h._snapshottime = (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date 
+                WHERE h.milestone = %s
+                GROUP BY day;
                 """, [ milestone_name ])
         except Exception:
             db.rollback()
@@ -325,8 +334,11 @@ class BurnDownCharts(Component):
         try:
             cursor.execute("""
                 SELECT _snapshottime, id
-                FROM ticket_bi_historical WHERE milestone=%s AND _snapshottime >=%s
-                AND _snapshottime <=%s ORDER BY _snapshottime ASC
+                FROM ticket_bi_historical
+                WHERE milestone=%s
+                    AND _snapshottime >=%s
+                    AND _snapshottime <=%s 
+                ORDER BY _snapshottime ASC
                 """, [ milestone_name, milestone_start, end])
         except Exception:
             db.rollback()
@@ -362,8 +374,12 @@ class BurnDownCharts(Component):
             cursor.execute("""
                 SELECT _snapshottime,
                 SUM(estimatedhours), SUM(totalhours), SUM(remaininghours)
-                FROM ticket_bi_historical WHERE milestone=%s AND _snapshottime >=%s
-                AND _snapshottime <=%s AND status != 'closed' GROUP BY _snapshottime
+                FROM ticket_bi_historical
+                WHERE milestone=%s
+                    AND _snapshottime >=%s
+                    AND _snapshottime <=%s
+                    AND status != 'closed'
+                GROUP BY _snapshottime
                 ORDER BY _snapshottime ASC
                 """, [ milestone_name, milestone_start, end])
         except Exception:
@@ -386,10 +402,14 @@ class BurnDownCharts(Component):
         cursor = db.cursor()
         try:
             cursor.execute("""
-                SELECT _snapshottime, COUNT(DISTINCT id) FROM ticket_bi_historical
-                WHERE milestone=%s AND _snapshottime>=%s AND _snapshottime <=%s 
-                AND status!='closed' 
-                GROUP BY _snapshottime ORDER BY _snapshottime ASC
+                SELECT _snapshottime, COUNT(DISTINCT id)
+                FROM ticket_bi_historical
+                WHERE milestone=%s
+                    AND _snapshottime>=%s
+                    AND _snapshottime <=%s 
+                    AND status!='closed' 
+                GROUP BY _snapshottime
+                ORDER BY _snapshottime ASC
                 """,[ milestone_name, milestone_start, end_date])
         except Exception:
             db.rollback()
@@ -406,8 +426,12 @@ class BurnDownCharts(Component):
         try:
             cursor.execute("""
                 SELECT _snapshottime, SUM(effort)
-                FROM ticket_bi_historical WHERE milestone=%s AND _snapshottime >=%s
-                AND _snapshottime <=%s AND status != 'closed' GROUP BY _snapshottime
+                FROM ticket_bi_historical
+                WHERE milestone=%s
+                    AND _snapshottime >=%s
+                    AND _snapshottime <=%s
+                    AND status != 'closed'
+                GROUP BY _snapshottime
                 ORDER BY _snapshottime ASC
                 """, [ milestone_name, milestone_start, end])
         except Exception:
