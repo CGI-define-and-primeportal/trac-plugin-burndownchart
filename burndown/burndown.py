@@ -23,7 +23,7 @@ from businessintelligenceplugin.history import HistoryStorageSystem
 
 class BurnDownCharts(Component):
 
-    unit_value = Option('burndown', 'units', 'hours',
+    unit_value = Option('burndown', 'units', 'tickets',
                     doc="The units of effort for the burndown chart")
 
     day_value = Option('burndown', 'days', 'all',
