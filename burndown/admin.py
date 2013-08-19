@@ -11,7 +11,7 @@ class BurndownAdmin(Component):
 
     implements(ITemplateProvider, IAdminPanelProvider)
 
-    unit_option = Option('burndown', 'units', 'hours',
+    unit_option = Option('burndown', 'units', 'tickets',
                     doc="The units of effort for the burndown chart")
 
     day_option = Option('burndown', 'days', 'all',
@@ -42,16 +42,10 @@ class BurndownAdmin(Component):
                         elif req.args['days'] == 'weekdays':
                             add_notice(req, 'Burndown charts will now only '
                             'include weekdays (excluding Saturday and Sunday)')
-                        elif req.args['days'] == 'custom':
-                            add_notice(req, 'Burndown charts will now only '
-                            'include the days you have specifed as working days '
-                            '(all dates you have marked as non-working days '
-                            'will be excluded)')
 
             # Pass values to the template
             data = {'day_options': [('all', 'All'),
-                                    ('weekdays', 'Weekdays'),
-                                    ('custom', 'Custom')],
+                                    ('weekdays', 'Weekdays')],
                     'unit_options': [('hours', 'Hours'),
                                     ('story_points', 'Story Points'),
                                     ('tickets', 'Tickets')],
