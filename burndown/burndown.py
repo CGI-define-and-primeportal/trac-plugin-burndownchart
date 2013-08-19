@@ -101,8 +101,10 @@ class BurnDownCharts(Component):
             # Remaining Work Curve
             burndown_series = self.hours_remaining_between_dates(db, 
                                           milestone_name, milestone_start, end)
-        elif self.unit_value == 'story points':
-            pass # do something
+        elif self.unit_value == 'story_points':
+            # Remaining Work Curve
+            burndown_series = self.points_remaining_between_dates(db, 
+                                          milestone_name, milestone_start, end)
 
         # If we don't have any burndown data, exit and render normal milestone_view page
         if not burndown_series:
@@ -149,7 +151,14 @@ class BurnDownCharts(Component):
         """Returns a list of tuples, each representing the total number
         of tickets closed on each day for a respective milestone. If no
         tickets are closed, a tuple for that date will still be alongside
-        included a 0 value."""
+        included a 0 value.
+
+        If the metric specified is tickets, the number of tickets closed
+        on that date will be used. If the metric specified is hours, 
+        the total amount of work logged in the ticket_time table
+        against tickets in the milestone will be used. If the metric
+        specified is story_points, the total amount of story points 
+        for all tickets closed on that day will be used."""
 
         # Convert milestone start and end dates to timestamps
         start_stamp = to_utimestamp(datetime.combine(milestone_start,
@@ -187,6 +196,18 @@ class BurnDownCharts(Component):
                     and h.milestone = %s
                     group by day;
                     """, [ milestone_name ])
+            elif metric == 'story_points':
+                cursor.execute("""
+                    select sum(h.effort), h._snapshottime
+                    from ticket_bi_historical as h
+                    join ticket_change as c on h.id = c.ticket and h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
+                    where c.field = 'status'
+                    and c.newvalue = 'closed'
+                    and h.milestone = %s
+                    and c.time >= %s
+                    and c.time <= %s
+                    group by day;
+                    """, [ milestone_name, start_stamp, end_stamp ])
         except Exception:
             db.rollback()
             self.log.exception('Unable to query the historical ticket table')
@@ -196,6 +217,8 @@ class BurnDownCharts(Component):
             work_per_date = [(i[1].strftime('%Y-%m-%d'), int(i[0])) for i in cursor]
         elif metric == 'hours':
             work_per_date = [(i[1].strftime('%Y-%m-%d'), int(i[0])/float(60)/float(60)) for i in cursor]
+        elif metric == 'story_points':
+            work_per_date = [(i[1], int(i[0])) for i in cursor]
 
         # Add missing dates from milestone where no tickets were closed
         set_of_dates = set([i[0] for i in work_per_date])
@@ -368,6 +391,25 @@ class BurnDownCharts(Component):
                 AND status!='closed' 
                 GROUP BY _snapshottime ORDER BY _snapshottime ASC
                 """,[ milestone_name, milestone_start, end_date])
+        except Exception:
+            db.rollback()
+            self.log.exception('Unable to query the historical ticket table')
+            return []
+
+        return [(str(i[0]), i[1]) for i in cursor]
+
+    def points_remaining_between_dates(self, db, milestone_name, milestone_start, end):
+        """"""
+
+        self.log.debug('Querying the database for historical effort/story point data')
+        cursor = db.cursor()
+        try:
+            cursor.execute("""
+                SELECT _snapshottime, SUM(effort)
+                FROM ticket_bi_historical WHERE milestone=%s AND _snapshottime >=%s
+                AND _snapshottime <=%s AND status != 'closed' GROUP BY _snapshottime
+                ORDER BY _snapshottime ASC
+                """, [ milestone_name, milestone_start, end])
         except Exception:
             db.rollback()
             self.log.exception('Unable to query the historical ticket table')
