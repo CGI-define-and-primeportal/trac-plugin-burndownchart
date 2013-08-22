@@ -93,30 +93,19 @@ class BurnDownCharts(Component):
         self.log.debug('Connecting to the database to retrieve chart data')
         db = self.env.get_read_db()
 
-        # Find the statuses we consider closed for all ticket types
-        # Using these statues contrust a SQL clause we use when querying the
-        # ticket_bi_historical table
-        closed_statuses, types_and_statuses = self.closed_statuses_for_all_types()
-        closed_status_clause = ' OR '.join('(type = %%s AND status NOT IN (%s))'
-                                      % ','.join('%s' for status in statuses)
-                                      for type_, statuses in closed_statuses.iteritems())
-
         # Remaining Effort (aka burndown) Curve
         if self.unit_value == 'tickets':
             # Remaining Work Curve
             burndown_series = self.tickets_open_between_dates(db,
-                                          milestone_name, milestone_start, end,
-                                          types_and_statuses, closed_status_clause)
+                                          milestone_name, milestone_start, end)
         elif self.unit_value == 'hours':
             # Remaining Work Curve
             burndown_series = self.hours_remaining_between_dates(db,
-                                          milestone_name, milestone_start, end,
-                                          types_and_statuses, closed_status_clause)
+                                          milestone_name, milestone_start, end)
         elif self.unit_value == 'story_points':
             # Remaining Work Curve
             burndown_series = self.points_remaining_between_dates(db,
-                                          milestone_name, milestone_start, end,
-                                          types_and_statuses, closed_status_clause)
+                                          milestone_name, milestone_start, end)
 
         # If we don't have any burndown data, exit and render normal milestone_view page
         if not burndown_series:
@@ -131,8 +120,7 @@ class BurnDownCharts(Component):
         # Team Effort Curve
         work_logged = self.work_logged_curve(self.unit_value, milestone_name,
                                                 milestone.start.date(), end, 
-                                                self.dates_as_strings(dates),
-                                                types_and_statuses, closed_statuses)
+                                                self.dates_as_strings(dates))
         add_script_data(req, {'teameffortdata': work_logged})
 
         # Ideal Curve (unit value doesnt matter)
@@ -160,8 +148,7 @@ class BurnDownCharts(Component):
 
     # Other methods for the class
 
-    def work_logged_curve(self, metric, milestone_name, milestone_start, end, dates,
-                          types_and_statuses, closed_statuses):
+    def work_logged_curve(self, metric, milestone_name, milestone_start, end, dates):
         """Returns a list of tuples, each representing the total number
         of tickets closed on each day for a respective milestone. If no
         tickets are closed, a tuple for that date will still be alongside
@@ -183,6 +170,8 @@ class BurnDownCharts(Component):
         db = self.env.get_read_db()
         cursor = db.cursor()
 
+        # Get all statuses we consider to mean that the ticket is closed
+        closed_statuses, types_and_statuses = self.closed_statuses_for_all_types()
         # Construct a query to identify all statuses in status groups we
         # considered closed
         closed_status_clause = ' OR '.join('(h.type = %%s AND c.newvalue IN (%s))'
@@ -396,8 +385,7 @@ class BurnDownCharts(Component):
         return data
 
     def hours_remaining_between_dates(self, db, milestone_name,
-                                      milestone_start, end,
-                                      types_and_statuses, closed_status_clause):
+                                      milestone_start, end):
         """Returns a list of tuples, each with a date and total remaining hours 
         value for all open tickets in that milestone.
 
@@ -418,14 +406,13 @@ class BurnDownCharts(Component):
                 SELECT _snapshottime,
                 SUM(estimatedhours), SUM(totalhours), SUM(remaininghours)
                 FROM ticket_bi_historical
-                WHERE milestone=%%s
-                    AND _snapshottime >=%%s
-                    AND _snapshottime <=%%s
-                    AND (%s)
+                WHERE milestone=%s
+                    AND _snapshottime >=%s
+                    AND _snapshottime <=%s
+                    AND isclosed = 'false'
                 GROUP BY _snapshottime
                 ORDER BY _snapshottime ASC
-                """ % closed_status_clause,
-                [milestone_name, milestone_start, end] + types_and_statuses)
+                """, [milestone_name, milestone_start, end])
         except Exception:
             db.rollback()
             self.log.exception('Unable to query the historical ticket table')
@@ -434,8 +421,7 @@ class BurnDownCharts(Component):
         return [(str(i[0]), i[3]) for i in cursor]
 
     def tickets_open_between_dates(self, db, milestone_name,
-                                  milestone_start, end,
-                                  types_and_statuses, closed_status_clause):
+                                  milestone_start, end):
         """Returns a list of tuples, each with a date and value to represent 
         the total amount of tickets open for that milestone on a given date.
 
@@ -450,14 +436,13 @@ class BurnDownCharts(Component):
             cursor.execute("""
                 SELECT _snapshottime, COUNT(DISTINCT id)
                 FROM ticket_bi_historical
-                WHERE milestone=%%s
-                    AND _snapshottime>=%%s
-                    AND _snapshottime <=%%s 
-                    AND (%s)
+                WHERE milestone=%s
+                    AND _snapshottime >=%s
+                    AND _snapshottime <=%s
+                    AND isclosed = 'false'
                 GROUP BY _snapshottime
                 ORDER BY _snapshottime ASC
-                """ % closed_status_clause,
-                [milestone_name, milestone_start, end] + types_and_statuses)
+                """, [milestone_name, milestone_start, end])
         except Exception:
             db.rollback()
             self.log.exception('Unable to query the historical ticket table')
@@ -466,8 +451,7 @@ class BurnDownCharts(Component):
         return [(str(i[0]), i[1]) for i in cursor]
 
     def points_remaining_between_dates(self, db, milestone_name,
-                                       milestone_start, end,
-                                       types_and_statuses, closed_status_clause):
+                                       milestone_start, end):
         """"""
 
         self.log.debug('Querying the database for historical effort/story point data')
@@ -479,11 +463,9 @@ class BurnDownCharts(Component):
                 WHERE milestone=%%s
                     AND _snapshottime >=%%s
                     AND _snapshottime <=%%s
-                    AND (%s)
+                    AND isclosed = 'false'
                 GROUP BY _snapshottime
-                ORDER BY _snapshottime ASC
-                """ % closed_status_clause,
-                [milestone_name, milestone_start, end] + types_and_statuses)
+                """, [milestone_name, milestone_start, end])
         except Exception:
             db.rollback()
             self.log.exception('Unable to query the historical ticket table')
