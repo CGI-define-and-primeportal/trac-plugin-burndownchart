@@ -18,6 +18,7 @@ from trac.env import IEnvironmentSetupParticipant
 from componentdependencies import IRequireComponents
 from businessintelligenceplugin.history import HistoryStorageSystem
 from logicaordertracker.controller import LogicaOrderController
+from trac.util.compat import md5
 
 # Author: Danny Milsom <danny.milsom@cgi.com>
 
@@ -80,13 +81,15 @@ class BurnDownCharts(Component):
         dates = self.dates_inbetween(start, end)
         all_milestone_dates = self.dates_inbetween(start, milestone.due.date())
 
+        kwargs = {'daysback':0, 'ticket':'on', 'ticket_details': 'on',
+                  'ticket_milestone_'+ md5(milestone_name).hexdigest(): 'on'}
+
         add_script_data(req, {'chartdata': 
                                 {'name': milestone_name,
                                  'start_date': milestone_start,
                                  'end_date': milestone_due,
                                  'effort_units': self.unit_value,
-                                 'timeline_url': req.href.timeline(daysback=0,
-                                              ticket='on', ticket_details='on')
+                                 'timeline_url': req.href.timeline(kwargs),
                                  }
                             })
 
