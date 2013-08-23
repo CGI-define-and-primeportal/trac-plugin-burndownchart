@@ -48,6 +48,21 @@
               </py:for>
             </select>
           </div>
+          <div>
+            <label for="ideal" class="fixed-width-label">Ideal Curve Start</label>
+            <select name="ideal" form="burndown">
+              <py:for each="option in ideal_options">
+                <py:choose test="">
+                  <py:when test="option[0] == current_ideal_value">
+                    <option selected="selected" value="${option[0]}">${option[1]}</option>
+                  </py:when>
+                  <py:otherwise>
+                    <option value="${option[0]}">${option[1]}</option>
+                  </py:otherwise>
+                </py:choose>
+              </py:for>
+            </select>
+          </div>
         </fieldset>
         <button type="submit" class="btn btn-mini btn-primary" name="burndown_submit" value="Save">
           <i class="icon-hdd icon-white"></i> Save

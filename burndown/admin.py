@@ -17,6 +17,12 @@ class BurndownAdmin(Component):
     day_option = Option('burndown', 'days', 'all',
                     doc="The different days to include in the burndown chart.")
 
+    ideal_option = Option('burndown', 'ideal', 'fixed',
+                    doc="""The values to include in the ideal curve. If fixed
+                    the ideal curve will only ever include the effort assigned
+                    to the milestone on its start date. If variable work added
+                    after the milestone has started will be included.""")
+
     # IAdminPanelProvider
 
     def get_admin_panels(self, req):
@@ -27,6 +33,9 @@ class BurndownAdmin(Component):
     def render_admin_panel(self, req, category, page, path_info):
         if page == 'burndown_charts':
             if req.method == 'POST':
+                if req.args['ideal']:
+                    self.env.config.set('burndown', 'ideal', req.args['ideal'])
+                    self.env.config.save()
                 if req.args['units'] and req.args['days']:
                     if self.unit_option != req.args['units']:
                         self.env.config.set('burndown', 'units', req.args['units'])
@@ -49,8 +58,11 @@ class BurndownAdmin(Component):
                     'unit_options': [('hours', 'Hours'),
                                     ('story_points', 'Story Points'),
                                     ('tickets', 'Tickets')],
+                    'ideal_options': [('fixed', 'Fixed'),
+                                      ('variable', 'Variable')],
                     'current_day_value' : self.day_option,
                     'current_unit_value' : self.unit_option,
+                    'current_ideal_value' : self.ideal_option,
                     'applicable_milestones' : self.milestones_with_start_and_end(),
                     }
 

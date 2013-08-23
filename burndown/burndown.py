@@ -31,6 +31,8 @@ class BurnDownCharts(Component):
     day_value = Option('burndown', 'days', 'all',
                     doc="The different days to include in the burndown chart.")
 
+    ideal_value = Option('burndown', 'ideal', 'fixed')
+
     implements(ITemplateProvider, IRequestFilter,
                ITicketActionController, ITemplateStreamFilter,
                IRequireComponents, IEnvironmentSetupParticipant)
@@ -118,7 +120,8 @@ class BurnDownCharts(Component):
         add_script_data(req, {'burndowndata': burndown_series})
 
         # Work Added Curve
-        add_script_data(req, {'workaddeddata': self.work_added(burndown_series)})
+        work_added_data = self.work_added(burndown_series)
+        add_script_data(req, {'workaddeddata': work_added_data})
 
         # Team Effort Curve
         work_logged = self.work_logged_curve(self.unit_value, milestone_name,
@@ -127,7 +130,12 @@ class BurnDownCharts(Component):
         add_script_data(req, {'teameffortdata': work_logged})
 
         # Ideal Curve (unit value doesnt matter)
-        original_estimate = burndown_series[0][1]
+        if self.ideal_value == 'fixed':
+            original_estimate = burndown_series[0][1]
+        # If we want to include work added after the start date
+        # in the ideal curve
+        elif self.ideal_value == 'variable':
+            original_estimate = burndown_series[0][1] + sum([added[1] for added in work_added_data])
 
         work_dates, non_work_dates = self.get_date_values(all_milestone_dates)
         add_script_data(req, {'idealcurvedata':self.ideal_curve(original_estimate,
