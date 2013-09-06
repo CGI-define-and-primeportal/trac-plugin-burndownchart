@@ -4,10 +4,11 @@ from datetime import datetime, date, timedelta, time
 
 from trac.core import *
 from trac.web.chrome import ITemplateProvider, add_script, add_script_data, \
-                            add_stylesheet, add_notice
+                            add_stylesheet, add_notice, add_ctxtnav
 from trac.web import ITemplateStreamFilter
 from trac.ticket.api import ITicketActionController
-from trac.web.api import IRequestFilter
+from trac.ticket.model import Milestone
+from trac.web.api import IRequestFilter, IRequestHandler
 from trac.util.datefmt import to_utimestamp, utc
 from trac.config import Option
 from itertools import groupby
@@ -19,6 +20,7 @@ from componentdependencies import IRequireComponents
 from businessintelligenceplugin.history import HistoryStorageSystem
 from logicaordertracker.controller import LogicaOrderController
 from trac.util.compat import md5
+from trac.util.presentation import to_json
 
 # Author: Danny Milsom <danny.milsom@cgi.com>
 
@@ -35,7 +37,8 @@ class BurnDownCharts(Component):
 
     implements(ITemplateProvider, IRequestFilter,
                ITicketActionController, ITemplateStreamFilter,
-               IRequireComponents, IEnvironmentSetupParticipant)
+               IRequireComponents, IEnvironmentSetupParticipant,
+               IRequestHandler)
 
     # IRequestFilter methods
 
@@ -48,16 +51,27 @@ class BurnDownCharts(Component):
         return handler
 
     def post_process_request(self, req, template, data, content_type):
+        """The actual burndown chart is generated and rendered after page load 
+        using a AJAX call which is picked up by the match_request() and 
+        process_request() methods.
+
+        This method determines if we should send that AJAX call, by 
+        checking the milestone has both a start and end date. If so, the 
+        jqPlot JS files are loaded and the script data 'render_burndown'  
+        passed via JSON. If not, we render a chrome notice to inform the user
+        that no burndown will be generated."""
 
         if not re.match('/milestone/[^ ]', req.path_info):
             return template, data, content_type
 
-        milestone = data['milestone']
+        # Load the plugins JS file
+        add_script(req, 'burndown/js/burndown.js')
+        data['burndown'] = True # for ITemplateStreamFilter
 
         # If we don't have a start or due date for the milestone, don't
-        # render the burndown chart
+        # try and render the burndown chart
+        milestone = data['milestone']
         if not milestone.start or not milestone.due:
-            data['burndown'] = False # used by the milestone_view.html
             if not milestone.start and not milestone.due:
                 add_notice(req, 'Unable to generate a burndown chart as this \
                                  milestone has no start or due date')
@@ -67,84 +81,38 @@ class BurnDownCharts(Component):
             elif not milestone.due:
                 add_notice(req, 'Unable to generate a burndown chart as the \
                                  milestone due date has not been specified')
+            add_script_data(req, {'render_burndown': 'false',
+                                  'base_url': req.href(),
+                                 })
             return template, data, content_type
+        else:
+            add_script_data(req, {'render_burndown': 'true',
+                                  'milestone_name': milestone.name,
+                                  'base_url': req.href(),
+                                  })
 
-        # Get milestone information from data
-        self.log.debug('Collecting data for burndown chart')
-        data['burndown'] = True
-        milestone_name = milestone.name
-        milestone_start = str(milestone.start.date())
-        milestone_due = str(milestone.due.date())
+        # Add a burndown dropdown list to the context nav
+        add_ctxtnav(req, tag.div(
+                            tag.a(
+                                tag.i(class_="icon-bar-chart "),
+                            " Burndown Chart"),
+                            tag.ul(
+                                tag.li(
+                                    tag.a('Ticket Metric', href=None, id_="tickets-metric"),
+                                ),
+                                tag.li(
+                                    tag.a('Hours Metric', href=None, id_="hours-metric"),
+                                ),
+                                tag.li(
+                                    tag.a('Story Point Metric', href=None, id_="points-metric"),
+                                ),
+                                class_="styled-dropdown fixed-max"
+                            ),
+                            class_="dropdown-toggle inline block",
+                          )
+                    )
 
-        # Calculate series of dates between a start and end date
-        start = milestone.start.date()
-        end = date.today() if date.today() <= milestone.due.date() \
-              else milestone.due.date()
-        dates = self.dates_inbetween(start, end)
-        all_milestone_dates = self.dates_inbetween(start, milestone.due.date())
-
-        kwargs = {'daysback':0, 'ticket':'on', 'ticket_details': 'on',
-                  'ticket_milestone_'+ md5(milestone_name).hexdigest(): 'on'}
-
-        add_script_data(req, {'chartdata': 
-                                {'name': milestone_name,
-                                 'start_date': milestone_start,
-                                 'end_date': milestone_due,
-                                 'effort_units': self.unit_value,
-                                 'timeline_url': req.href.timeline(kwargs),
-                                 }
-                            })
-
-        self.log.debug('Connecting to the database to retrieve chart data')
-        db = self.env.get_read_db()
-
-        # Remaining Effort (aka burndown) Curve
-        if self.unit_value == 'tickets':
-            # Remaining Work Curve
-            burndown_series = self.tickets_open_between_dates(db,
-                                          milestone_name, milestone_start, end)
-        elif self.unit_value == 'hours':
-            # Remaining Work Curve
-            burndown_series = self.hours_remaining_between_dates(db,
-                                          milestone_name, milestone_start, end)
-        elif self.unit_value == 'story_points':
-            # Remaining Work Curve
-            burndown_series = self.points_remaining_between_dates(db,
-                                          milestone_name, milestone_start, end)
-
-        # If we don't have any burndown data, exit and render normal milestone_view page
-        if not burndown_series:
-            data['burndown'] = False # Needed for stream filter
-            return template, data, content_type
-
-        add_script_data(req, {'burndowndata': burndown_series})
-
-        # Work Added Curve
-        work_added_data = self.work_added(burndown_series)
-        add_script_data(req, {'workaddeddata': work_added_data})
-
-        # Team Effort Curve
-        work_logged = self.work_logged_curve(self.unit_value, milestone_name,
-                                                milestone.start.date(), end, 
-                                                self.dates_as_strings(dates))
-        add_script_data(req, {'teameffortdata': work_logged})
-
-        # Ideal Curve (unit value doesnt matter)
-        if self.ideal_value == 'fixed':
-            original_estimate = burndown_series[0][1]
-        # If we want to include work added after the start date
-        # in the ideal curve
-        elif self.ideal_value == 'variable':
-            original_estimate = burndown_series[0][1] + sum([added[1] for added in work_added_data])
-
-        work_dates, non_work_dates = self.get_date_values(all_milestone_dates)
-        add_script_data(req, {'idealcurvedata':self.ideal_curve(original_estimate,
-                                                             all_milestone_dates,
-                                                             work_dates),
-                              })
-
-        # Adds JS and jqPlot library needed by burn down charts
-        add_script(req, 'burndown/js/burndown.js')
+        # Adds jqPlot library needed by burndown charts
         add_script(req, self.get_jqplot_file('jquery.jqplot'))
         add_stylesheet(req, 'common/js/jqPlot/jquery.jqplot.min.css')
         add_script(req, self.get_jqplot_file('plugins/jqplot.dateAxisRenderer'))
@@ -156,6 +124,102 @@ class BurnDownCharts(Component):
         add_script(req, self.get_jqplot_file('plugins/jqplot.enhancedLegendRenderer'))
 
         return template, data, content_type
+
+    # IRequestHandler
+
+    def match_request(self, req):
+        """Requests to this URL should only be sent via AJAX"""
+        match = re.search('/ajax/burndown/', req.path_info)
+        if match:
+            return True
+
+    def process_request(self, req):
+        """Generate and render a burndown chart for the respective milestone"""
+
+        # Get milestone information
+        data = {}
+        self.log.debug('Collecting data for burndown chart')
+        milestone_name = req.args['milestone']
+        milestone = Milestone(self.env, milestone_name)
+        milestone_start = str(milestone.start.date())
+        milestone_due = str(milestone.due.date())
+
+        # Calculate series of dates between a start and end date
+        start = milestone.start.date()
+        end = date.today() if date.today() <= milestone.due.date() \
+              else milestone.due.date()
+        dates = self.dates_inbetween(start, end)
+        all_milestone_dates = self.dates_inbetween(start, milestone.due.date())
+
+        self.log.debug('Connecting to the database to retrieve chart data')
+        db = self.env.get_read_db()
+
+        # If no metric data is posted, use the project default self.unit_value
+        if 'metric' in req.args:
+            metric = req.args['metric']
+        else:
+            metric = self.unit_value
+
+        # Remaining Effort (aka burndown) Curve
+        if metric == 'tickets':
+            # Remaining Work Curve
+            burndown_series = self.tickets_open_between_dates(db,
+                                          milestone_name, milestone_start, end)
+        elif metric == 'hours':
+            # Remaining Work Curve
+            burndown_series = self.hours_remaining_between_dates(db,
+                                          milestone_name, milestone_start, end)
+        elif metric == 'story_points':
+            # Remaining Work Curve
+            burndown_series = self.points_remaining_between_dates(db,
+                                          milestone_name, milestone_start, end)
+
+        # If we don't have any burndown data send a message and don't go 
+        # any further
+        if not burndown_series:
+            req.send(to_json({'result': 'no-data'}), 'text/json')
+
+        # Work Added Curve
+        work_added_data = self.work_added(burndown_series)
+
+        # Team Effort Curve
+        work_logged = self.work_logged_curve(metric, milestone_name,
+                                                milestone.start.date(), end, 
+                                                self.dates_as_strings(dates))
+
+        # Ideal Curve (unit value doesnt matter)
+        if self.ideal_value == 'fixed':
+            original_estimate = burndown_series[0][1]
+        # If we want to include work added after the start date
+        # in the ideal curve
+        elif self.ideal_value == 'variable':
+            original_estimate = burndown_series[0][1] + sum([added[1] for added in work_added_data])
+
+        work_dates, non_work_dates = self.get_date_values(all_milestone_dates)
+        ideal_data = self.ideal_curve(original_estimate, all_milestone_dates,
+                                                             work_dates)
+
+        # Args for timeline URL
+        kwargs = {'daysback':0, 'ticket':'on', 'ticket_details': 'on',
+                  'ticket_milestone_'+ md5(milestone_name).hexdigest(): 'on'}
+
+        data['burndown'] = True
+
+        result = {'burndowndata': burndown_series,
+                  'workaddeddata': work_added_data,
+                  'teameffortdata' : work_logged,
+                  'idealcurvedata': ideal_data,
+                  'name': milestone_name,
+                  'start_date': milestone_start,
+                  'end_date': milestone_due,
+                  'effort_units': self.unit_value,
+                  'timeline_url': req.href.timeline(kwargs),
+                 }
+
+        if 'metric' in req.args:
+            result['redraw'] = 'Yes'
+
+        req.send(to_json(result), 'text/json')
 
     # Other methods for the class
 
@@ -474,14 +538,8 @@ class BurnDownCharts(Component):
 
     # ITemplateStreamFilter
     def filter_stream(self, req, method, filename, stream, data):
-        if filename == 'milestone_view.html':
-            if data['burndown']:
-                stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(id_='chart1', class_='box-primary'))
-            else:
-                html_text = 'To generate a burndown chart for this milestone please ensure there is a start and due date set. \
-                This is configurable on the ', tag.a('milestone admin page. ', href=req.href.admin('ticket', 'milestones')), \
-                'Please also check that the businessintelligenceplugin is enabled.'
-                stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(html_text, id_='chart1', class_='box-info'))
+        if 'burndown' in data:
+            stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(id_='chart1', class_='box-primary'))
         return stream
 
     # ITicketActionController methods
