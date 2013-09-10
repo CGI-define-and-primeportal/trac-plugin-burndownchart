@@ -9,7 +9,7 @@ from trac.web import ITemplateStreamFilter
 from trac.ticket.api import ITicketActionController
 from trac.ticket.model import Milestone
 from trac.web.api import IRequestFilter, IRequestHandler
-from trac.util.datefmt import to_utimestamp, utc
+from trac.util.datefmt import to_utimestamp, utc,to_timestamp
 from trac.config import Option
 from itertools import groupby
 from operator import itemgetter
@@ -179,13 +179,13 @@ class BurnDownCharts(Component):
         if not burndown_series:
             req.send(to_json({'result': 'no-data'}), 'text/json')
 
-        # Work Added Curve
-        work_added_data = self.work_added(burndown_series)
-
         # Team Effort Curve
         work_logged = self.work_logged_curve(metric, milestone_name,
                                                 milestone.start.date(), end, 
                                                 self.dates_as_strings(dates))
+
+        # Work Added Curve
+        work_added_data = self.work_added(burndown_series, work_logged)
 
         # Ideal Curve (unit value doesnt matter)
         if self.ideal_value == 'fixed':
@@ -237,16 +237,23 @@ class BurnDownCharts(Component):
         for all tickets closed on that day will be used."""
 
         # Convert milestone start and end dates to timestamps
-        start_stamp = to_utimestamp(datetime.combine(milestone_start,
+        if metric == 'tickets' or metric == 'story_points':
+            start_stamp = to_utimestamp(datetime.combine(milestone_start,
                                             time(hour=0,minute=00,tzinfo=utc)))
-        end_stamp = to_utimestamp(datetime.combine(end,
+            end_stamp = to_utimestamp(datetime.combine(end,
                                            time(hour=23,minute=59,tzinfo=utc)))
+        else:
+            start_stamp = to_timestamp(datetime.combine(milestone_start,
+                                        time(hour=0,minute=00,tzinfo=utc)))
+            end_stamp = to_utimestamp(datetime.combine(end,
+                                       time(hour=23,minute=59,tzinfo=utc)))
 
         db = self.env.get_read_db()
         cursor = db.cursor()
 
         # Get all statuses we consider to mean that the ticket is closed
         closed_statuses, types_and_statuses = self.closed_statuses_for_all_types()
+
         # Construct a query to identify all statuses in status groups we
         # considered closed
         closed_status_clause = ' OR '.join('(h.type = %%s AND c.newvalue IN (%s))'
@@ -284,8 +291,10 @@ class BurnDownCharts(Component):
                         ON t.ticket = h.id
                         AND h._snapshottime = (timestamp with time zone 'epoch' + t.time_started * INTERVAL '1 second')::date
                     WHERE h.milestone = %s
+                        AND t.time_started >= %s
+                        AND t.time_started <= %s
                     GROUP BY day;
-                    """, [ milestone_name ])
+                    """, [ milestone_name, start_stamp, end_stamp ])
             elif metric == 'story_points':
                 cursor.execute("""
                     SELECT SUM(h.effort), h._snapshottime
@@ -385,7 +394,7 @@ class BurnDownCharts(Component):
         try:
             cursor.execute("""
                 SELECT _snapshottime,
-                SUM(estimatedhours), SUM(totalhours), SUM(remaininghours)
+                    SUM(remaininghours)
                 FROM ticket_bi_historical
                 WHERE milestone=%s
                     AND _snapshottime >=%s
@@ -399,7 +408,7 @@ class BurnDownCharts(Component):
             self.log.exception('Unable to query the historical ticket table')
             return []
 
-        return [(str(i[0]), i[3]) for i in cursor]
+        return [(str(i[0]), i[1]) for i in cursor]
 
     def tickets_open_between_dates(self, db, milestone_name,
                                   milestone_start, end):
@@ -454,17 +463,29 @@ class BurnDownCharts(Component):
 
         return [(str(i[0]), i[1]) for i in cursor]
 
-    def work_added(self, effort_data):
-        """Iterates through all the days and remaining effort values shown on 
-        the burndown chart, and calculates if the effort of work has increased.
-        If it has the difference is calculated and placed in a tuple alongside
-        the appropriate date. If remaining work is the same or less, the tuple
-        includes a date and 0 value.""" 
+    def work_added(self, effort_data, logged_data):
+        """To calculate the amount of work added each day we find the 
+        difference between the remaining effort data points on days n 
+        and n-1. We then add the work logged on day n to calculate the 
+        amount of work added (or removed)."""
 
-        return [(data[0], 0) if i == 0
-            else (data[0], data[1] - effort_data[i-1][1]) if data[1] > effort_data[i-1][1]
-            else (data[0], 0)
-            for i, data in enumerate(effort_data)]
+        # Work can be added by:
+        # * creating a new ticket in the milestone
+        # * moving a ticket into the milestone
+        # * increases the remaining estimated effort / story points
+        # Luckily we don't need to worry about that with this algorithm
+
+        remaining_difference = [(data[0], 0) if i == 0
+                                else (data[0], data[1] - effort_data[i-1][1])
+                                for i, data
+                                in enumerate(sorted(effort_data, key=itemgetter(0)))]
+
+        # We assume that the remaining_difference and logged data are 
+        # the same length, so each tuple we iterate over in each list
+        # relates to the same date (hence the sort)
+        return [(remaining[0], remaining[1] + logged[1])
+                for remaining, logged
+                in zip(remaining_difference,sorted(logged_data, key=itemgetter(0)))]
 
     def dates_inbetween(self, start, end):
         """Returns a list of datetime objects, with each item 

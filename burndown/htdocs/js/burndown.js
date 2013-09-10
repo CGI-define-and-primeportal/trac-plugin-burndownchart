@@ -198,7 +198,7 @@ $(document).ready(function(){
           var date_string = new_date.getFullYear() + "-" + (new_date.getMonth() +1) + "-" + new_date.getDate();
         }
         // redirect to the timeline page for that date
-        window.location = (burndown['timeline_url'] + '&from=' + date_string);
+        window.location = (data['timeline_url'] + '&from=' + date_string);
       }
     );
   }
