@@ -106,6 +106,9 @@ class BurnDownCharts(Component):
                                 tag.li(
                                     tag.a('Story Point Metric', href=None, id_="points-metric"),
                                 ),
+                                tag.li(
+                                    tag.a('Print', href=None, id_="print-burndown"),
+                                ),
                                 class_="styled-dropdown fixed-max"
                             ),
                             class_="dropdown-toggle inline block",

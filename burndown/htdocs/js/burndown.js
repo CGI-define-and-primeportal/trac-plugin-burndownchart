@@ -101,7 +101,8 @@ $(document).ready(function(){
       animate: true,
       animateReplot: true,
       grid: {
-        shadow: false
+        shadow: false,
+        background: '#FFFFFF'
       },
       axesDefaults: {
         tickRenderer: $.jqplot.CanvasAxisTickRenderer,
@@ -228,5 +229,13 @@ $(document).ready(function(){
                       down data.</span>")
                 .attr("class", "box-info");
   }
+
+  // Open a new window with the an image of the burndown chart
+  $('#print-burndown').click(function() {
+    //var $chart = $("#chart1");
+    //var $burdown_image = $chart.jqplotToImageStr({});
+    //var $burdown_image = $("#chart1").jqplotToImageStr({});
+    window.open($("#chart1").jqplotToImageStr({}));
+  });
 
 });
