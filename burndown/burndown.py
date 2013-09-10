@@ -6,7 +6,6 @@ from trac.core import *
 from trac.web.chrome import ITemplateProvider, add_script, add_script_data, \
                             add_stylesheet, add_notice, add_ctxtnav
 from trac.web import ITemplateStreamFilter
-from trac.ticket.api import ITicketActionController
 from trac.ticket.model import Milestone
 from trac.web.api import IRequestFilter, IRequestHandler
 from trac.util.datefmt import to_utimestamp, utc,to_timestamp
@@ -36,9 +35,8 @@ class BurnDownCharts(Component):
     ideal_value = Option('burndown', 'ideal', 'fixed')
 
     implements(ITemplateProvider, IRequestFilter,
-               ITicketActionController, ITemplateStreamFilter,
-               IRequireComponents, IEnvironmentSetupParticipant,
-               IRequestHandler)
+               ITemplateStreamFilter, IRequireComponents,
+               IEnvironmentSetupParticipant, IRequestHandler)
 
     # IRequestFilter methods
 
@@ -565,11 +563,6 @@ class BurnDownCharts(Component):
         if 'burndown' in data:
             stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(id_='chart1', class_='box-primary'))
         return stream
-
-    # ITicketActionController methods
-
-    def is_closed(req, ticket):
-        pass
 
     # ITemplateProvider methods
 
