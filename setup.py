@@ -41,7 +41,7 @@ setup(
     url="https://d4.define.logica.com",
     packages=['burndown'],
     package_data={
-        'burndownchartplugin': [
+        'burndown': [
             'htdocs/js/*.js',
             'templates/*.html',
             ],
