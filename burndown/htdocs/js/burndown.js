@@ -6,8 +6,7 @@ $(document).ready(function(){
   // Request burn down chart data via Ajax
   // Use the default metric set in burndown admin panel
   if (render_burndown == 'true') {
-    $("#chart1").append($("<i class='icon-spinner icon-spin icon-2x block center'></i>")
-                .tooltip({content:"Loading burn down chart data"}));
+    show_spinner("#chart1");
     $.ajax({
       type: 'GET',
       data: {'milestone':milestone_name},
@@ -35,12 +34,15 @@ $(document).ready(function(){
 
   // Redraw the burn down if the user changes the metric
   $('#tickets-metric, #hours-metric, #story-metric').click(function() {
+    show_spinner("#chart1");
+    $("#burndown-spinner").css("margin-top", "100px");
     metric_value = this.id.split('-')[0];
     $.ajax({
       type: 'GET',
       data: {'metric':metric_value, 'milestone':milestone_name},
       url: base_url +'/ajax/burndown/',
       success: function (data) {
+        remove_spinner("#chart1")
         if (data['result'] != 'no-data') {
           redraw_burndown(data, metric_value);
         }
@@ -49,6 +51,7 @@ $(document).ready(function(){
         }
       },
       error: function(data, textStatus, jqXHR) {
+        remove_spinner("#chart1")
         burndown_fail();
       }
     });
@@ -228,6 +231,16 @@ $(document).ready(function(){
     $("#chart1").html("<span class='block center'> Failed to retrieve burn \
                       down data.</span>")
                 .attr("class", "box-info");
+  }
+
+  function show_spinner(chartname) {
+    $(chartname).addClass("center")
+                 .append("<i id='burndown-spinner' class='icon-spinner icon-spin icon-4x'></i>");
+  }
+
+  function remove_spinner(chartname) {
+    $(chartname).removeClass("center");
+    $("burndown-spinner").remove();
   }
 
   // Open a new window with the an image of the burndown chart
