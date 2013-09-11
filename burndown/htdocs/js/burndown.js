@@ -191,17 +191,23 @@ $(document).ready(function(){
     $('#chart1').bind('jqplotDataClick',
       function (ev, seriesIndex, pointIndex, data, neighbor, gridData) {
         // data[0] is a unix timestamp
-        var new_date = new Date(data[0]);
-        // Necessary check as getDate does not always return two integers
-        if (new_date.getDate() <= 9 ) {
-          var date_string = new_date.getFullYear() + "-" + (new_date.getMonth() +1) + "-0" + new_date.getDate();
-        }
-        else if (new_date.getMonth() <= 8) { // Remember months are zero based in JS
-          var date_string = new_date.getFullYear() + "-0" + (new_date.getMonth() +1) + "-" + new_date.getDate();
+        new_date = new Date(data[0]);
+        year = new_date.getFullYear();
+        // Necessary check as getDate and getMonth not always MM or DD format
+        // Remember JS date months are zero based hence the +1
+        if (new_date.getMonth() +1 <= 9) {
+          month = "0" + (new_date.getMonth() +1);
         }
         else {
-          var date_string = new_date.getFullYear() + "-" + (new_date.getMonth() +1) + "-" + new_date.getDate();
+          month = new_date.getMonth() +1;
         }
+        if (new_date.getDate() <= 9) {
+          day = "0" + new_date.getDate();
+        }
+        else {
+          day = new_date.getDate();
+        }
+        date_string = year + "-" + month + "-" + day;
         // redirect to the timeline page for that date
         window.location = (timeline_url + '&from=' + date_string);
       }
