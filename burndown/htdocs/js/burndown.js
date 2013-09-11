@@ -187,6 +187,7 @@ $(document).ready(function(){
     });
 
     // Makes the data points clickable, redirecting the user to the timeline
+    var timeline_url = data['timeline_url'];
     $('#chart1').bind('jqplotDataClick',
       function (ev, seriesIndex, pointIndex, data, neighbor, gridData) {
         // data[0] is a unix timestamp
@@ -202,7 +203,7 @@ $(document).ready(function(){
           var date_string = new_date.getFullYear() + "-" + (new_date.getMonth() +1) + "-" + new_date.getDate();
         }
         // redirect to the timeline page for that date
-        window.location = (data['timeline_url'] + '&from=' + date_string);
+        window.location = (timeline_url + '&from=' + date_string);
       }
     );
   }
