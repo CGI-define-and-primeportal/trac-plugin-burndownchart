@@ -203,7 +203,7 @@ class BurnDownCharts(Component):
                   'name': milestone_name,
                   'start_date': milestone_start,
                   'end_date': milestone_due,
-                  'effort_units': self.unit_value,
+                  'effort_units': metric,
                   'timeline_url': req.href.timeline(kwargs),
                  }
 

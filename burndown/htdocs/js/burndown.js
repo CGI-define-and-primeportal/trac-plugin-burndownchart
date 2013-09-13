@@ -39,9 +39,10 @@ $(document).ready(function(){
       data: {'metric':metric_value, 'milestone':milestone_name},
       url: base_url +'/ajax/burndown/',
       success: function (data) {
+        debugger
         remove_spinner("#chart1")
         if (data['result'] != 'no-data') {
-          redraw_burndown(data, metric_value);
+          redraw_burndown(data);
         }
         else {
           burndown_fail();
@@ -54,40 +55,12 @@ $(document).ready(function(){
     });
   });
 
-  function draw_burndown(data) {
-    // Expects date as a string in yyyy-mm-dd format, with a time added for 
-    // greater accuracy.
-    window.addTime = function(date){
-      var formatted_date = date + ' 12:01AM';
-      return formatted_date
-    };
-
-    // Function which returns a two dimensional array. Each array has a 
-    // date and value, with the value reflecting some kind of work either 
-    // remaining or completed on that day
-    window.dataSeries = function(curvedata){
-      var series_data = [];
-      for (var i=0; i < curvedata.length; i++) {
-        series_data.push([addTime(curvedata[i][0]), curvedata[i][1]]);
-      }
-      return series_data;
-    };
-
-    // Curve data needed for jqPlot series
-    var burndowncurve = dataSeries(data['burndowndata']);
-    var teameffortcurve = dataSeries(data['teameffortdata']);
-    var idealcurve = dataSeries(data['idealcurvedata']);
-    var addedcurve = dataSeries(data['workaddeddata']);
-
-    // Makes the jqPlot resize when the window dimensions change
-    $(window).on('debouncedresize', function() {
-          plot1.replot( { resetAxes: true } );
-    });
+  function burndown_options(data) {
 
     // Calculate the interval between x-axis dates (aka tickInterval)
     // 20 ticks is about right on a average sized screen
     // We plus one so that for 0.x numbers, we still get a 1 day interval
-    tick_gap = Number(String((idealcurve.length / 20)));
+    tick_gap = Number(String((data['idealcurvedata'].length / 20)));
     if (tick_gap < 1) {
       xaxis_interval = '1 day';
     }
@@ -95,8 +68,7 @@ $(document).ready(function(){
       xaxis_interval = String(tick_gap + 1).split('.')[0] + ' days';
     }
 
-    // Render the jqPlot burn down chart
-    window.plot1 = $.jqplot('chart1', [idealcurve, burndowncurve, teameffortcurve, addedcurve], {
+    return {
       gridPadding: {top:28},
       animate: true,
       animateReplot: true,
@@ -181,7 +153,38 @@ $(document).ready(function(){
           numberRows: 1
         }
       }
-    });
+    };
+  }
+
+  function draw_burndown(data) {
+    // Expects date as a string in yyyy-mm-dd format, with a time added for 
+    // greater accuracy.
+    window.addTime = function(date){
+      var formatted_date = date + ' 12:01AM';
+      return formatted_date
+    };
+
+    // Function which returns a two dimensional array. Each array has a 
+    // date and value, with the value reflecting some kind of work either 
+    // remaining or completed on that day
+    window.dataSeries = function(curvedata){
+      var series_data = [];
+      for (var i=0; i < curvedata.length; i++) {
+        series_data.push([addTime(curvedata[i][0]), curvedata[i][1]]);
+      }
+      return series_data;
+    };
+
+    // Curve data needed for jqPlot series
+    var burndowncurve = dataSeries(data['burndowndata']);
+    var teameffortcurve = dataSeries(data['teameffortdata']);
+    var idealcurve = dataSeries(data['idealcurvedata']);
+    var addedcurve = dataSeries(data['workaddeddata']);
+
+    // Render the jqPlot burn down chart
+    window.plot1 = $.jqplot('chart1',
+                            [idealcurve, burndowncurve, teameffortcurve, addedcurve],
+                            burndown_options(data));
 
     // Makes the data points clickable, redirecting the user to the timeline
     var timeline_url = data['timeline_url'];
@@ -209,26 +212,24 @@ $(document).ready(function(){
         window.location = (timeline_url + '&from=' + date_string);
       }
     );
+
+    // Makes the jqPlot resize when the window dimensions change
+    $(window).on('debouncedresize', function() {
+          plot1.replot( { resetAxes: true } );
+    });
   }
 
-  function redraw_burndown(data, metric) {
+  function redraw_burndown(data) {
     //Redraw the burn down chart with new data returned from JSON
     var burndowncurve = dataSeries(data['burndowndata']);
     var teameffortcurve = dataSeries(data['teameffortdata']);
     var idealcurve = dataSeries(data['idealcurvedata']);
     var addedcurve = dataSeries(data['workaddeddata']);
 
-    var options = {
-      axis: {
-        yaxis: {
-          legend: 'Effort ' + metric
-        }
-      },
-      highlighter: {
-        formatString: '%s - %s ' + metric
-      }
-    }
-    plot1.replot({data:[idealcurve, burndowncurve, teameffortcurve, addedcurve]}, options);
+    $("#chart1").html("");
+    window.plot1 = $.jqplot('chart1',
+                            [idealcurve, burndowncurve, teameffortcurve, addedcurve],
+                            burndown_options(data))
   }
 
   function burndown_fail() {
