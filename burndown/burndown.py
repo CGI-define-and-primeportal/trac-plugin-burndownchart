@@ -269,20 +269,21 @@ class BurnDownCharts(Component):
         try:
             if metric == 'tickets':
                 cursor.execute("""
-                    SELECT COUNT(c.ticket),
-                        (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day
+                    SELECT c.ticket,
+                        (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date as day,
+                        h.type,
+                        c.oldvalue,
+                        c.newvalue
                     FROM ticket_change AS c
                     JOIN ticket_bi_historical AS h
                         ON c.ticket = h.id
                         AND h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
-                    WHERE h.milestone = %%s
-                        AND c.time >= %%s
-                        AND c.time <= %%s
+                    WHERE h.milestone = %s
+                        AND c.time >= %s
+                        AND c.time <= %s
                         AND c.field = 'status'
-                        AND (%s)
-                    GROUP BY day;
-                    """ % closed_status_clause,
-                    [milestone_name, start_stamp, end_stamp] + types_and_statuses)
+                    ORDER BY c.time ASC
+                    """, [milestone_name, start_stamp, end_stamp])
             elif metric == 'hours':
                 cursor.execute("""
                     SELECT SUM(t.seconds_worked),
@@ -316,7 +317,7 @@ class BurnDownCharts(Component):
             return []
 
         if metric == 'tickets':
-            work_per_date = [(i[1].strftime('%Y-%m-%d'), int(i[0])) for i in cursor]
+            work_per_date = self.count_tickets_closed(cursor, closed_statuses)
         elif metric == 'hours':
             work_per_date = [(i[1].strftime('%Y-%m-%d'), int(i[0])/float(60)/float(60)) for i in cursor]
         elif metric == 'story_points':
@@ -549,6 +550,40 @@ class BurnDownCharts(Component):
                 ideal_data.append((date, ideal_data[i-1][1]))
 
         return ideal_data
+
+    def count_tickets_closed(self, cursor, closed_statuses):
+        """This is used to render the work logged curve, and counts 
+        the number of tickets moved from an open to closed 
+        status on a given day. If a ticket is re-opened
+        after it has already been closed on a day, we will
+        no longer count that ticket as closed for the purposes
+        of this count.
+
+        # change[0] is ticket id
+        # change[1] is date changed
+        # change[2] is ticket type
+        # change[3] is old status value
+        # change[4] is new status value"""
+
+        closed_per_date = []
+        # Group changes by date
+        for date, changes in groupby(cursor, itemgetter(1)):
+            closed_ids = []
+            for change in changes:
+                # Get all closed statuses for ticket type
+                closed_status_for_type = closed_statuses[change[2]]
+
+                # if moved from an open to closed status
+                if change[3] not in closed_status_for_type and change[4] in closed_status_for_type:
+                    closed_ids.append(change[0])
+                # if moved from a closed status to open
+                if change[3] in closed_status_for_type and change[4] not in closed_status_for_type:
+                    closed_ids.remove(change[0])
+
+            # List of tuples (date, closed_count)
+            closed_per_date.append((date.strftime('%Y-%m-%d'), len(closed_ids)))
+
+        return closed_per_date
 
     def dates_as_strings(self, dates):
         """Returns string representation of all dates in a list"""
