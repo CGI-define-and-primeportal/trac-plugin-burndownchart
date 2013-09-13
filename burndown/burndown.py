@@ -151,28 +151,21 @@ class BurnDownCharts(Component):
         dates = self.dates_inbetween(start, end)
         all_milestone_dates = self.dates_inbetween(start, milestone.due.date())
 
+        # Open a database connection
         self.log.debug('Connecting to the database to retrieve chart data')
         db = self.env.get_read_db()
 
         # If no metric data is posted, use the project default self.unit_value
-        if 'metric' in req.args:
-            metric = req.args['metric']
-        else:
-            metric = self.unit_value
+        metric = req.args['metric'] if 'metric' in req.args else self.unit_value
 
         # Remaining Effort (aka burndown) Curve
+        remaining_effort_args = [db, milestone_name, milestone_start, end]
         if metric == 'tickets':
-            # Remaining Work Curve
-            burndown_series = self.tickets_open_between_dates(db,
-                                          milestone_name, milestone_start, end)
+            burndown_series = self.tickets_open_between_dates(*remaining_effort_args)
         elif metric == 'hours':
-            # Remaining Work Curve
-            burndown_series = self.hours_remaining_between_dates(db,
-                                          milestone_name, milestone_start, end)
-        elif metric == 'story_points':
-            # Remaining Work Curve
-            burndown_series = self.points_remaining_between_dates(db,
-                                          milestone_name, milestone_start, end)
+            burndown_series = self.hours_remaining_between_dates(*remaining_effort_args)
+        elif metric == 'points':
+            burndown_series = self.points_remaining_between_dates(*remaining_effort_args)
 
         # If we don't have any burndown data send a message and don't go 
         # any further
@@ -180,12 +173,12 @@ class BurnDownCharts(Component):
             req.send(to_json({'result': 'no-data'}), 'text/json')
 
         # Team Effort Curve
-        work_logged = self.work_logged_curve(metric, milestone_name,
+        team_effort = self.team_effort_curve(db, metric, milestone_name,
                                                 milestone.start.date(), end, 
                                                 self.dates_as_strings(dates))
 
         # Work Added Curve
-        work_added_data = self.work_added(burndown_series, work_logged)
+        work_added_data = self.work_added(burndown_series, team_effort)
 
         # Ideal Curve (unit value doesnt matter)
         if self.ideal_value == 'fixed':
@@ -203,11 +196,9 @@ class BurnDownCharts(Component):
         kwargs = {'daysback':0, 'ticket':'on', 'ticket_details': 'on',
                   'ticket_milestone_'+ md5(milestone_name).hexdigest(): 'on'}
 
-        data['burndown'] = True
-
         result = {'burndowndata': burndown_series,
                   'workaddeddata': work_added_data,
-                  'teameffortdata' : work_logged,
+                  'teameffortdata' : team_effort,
                   'idealcurvedata': ideal_data,
                   'name': milestone_name,
                   'start_date': milestone_start,
@@ -223,48 +214,44 @@ class BurnDownCharts(Component):
 
     # Other methods for the class
 
-    def work_logged_curve(self, metric, milestone_name, milestone_start, end, dates):
+    def team_effort_curve(self, db, metric, milestone_name, milestone_start, end, dates):
         """Returns a list of tuples, each representing the total number
         of tickets closed on each day for a respective milestone. If no
         tickets are closed, a tuple for that date will still be alongside
         included a 0 value.
 
         If the metric specified is tickets, the number of tickets closed
-        on that date will be used. If the metric specified is hours, 
-        the total amount of work logged in the ticket_time table
-        against tickets in the milestone will be used. If the metric
-        specified is story_points, the total amount of story points 
+        on that date will be used. If a ticket is reopened after it is
+        closed, we will not count that ticket as effort.
+
+        If the metric specified is hours, the total amount of work logged 
+        in the ticket_time table against tickets in the milestone on 
+        a given day will be used.
+
+        If the metric specified is story_points, the total amount of story points 
         for all tickets closed on that day will be used."""
 
-        # Convert milestone start and end dates to timestamps
-        if metric == 'tickets' or metric == 'story_points':
-            start_stamp = to_utimestamp(datetime.combine(milestone_start,
-                                            time(hour=0,minute=00,tzinfo=utc)))
-            end_stamp = to_utimestamp(datetime.combine(end,
-                                           time(hour=23,minute=59,tzinfo=utc)))
-        else:
+        # Convert milestone start and end dates to timestamps based on metric
+        if metric == 'hours':
             start_stamp = to_timestamp(datetime.combine(milestone_start,
                                         time(hour=0,minute=00,tzinfo=utc)))
             end_stamp = to_utimestamp(datetime.combine(end,
                                        time(hour=23,minute=59,tzinfo=utc)))
+        else: # must be tickets or story points
+            start_stamp = to_utimestamp(datetime.combine(milestone_start,
+                                            time(hour=0,minute=00,tzinfo=utc)))
+            end_stamp = to_utimestamp(datetime.combine(end,
+                                           time(hour=23,minute=59,tzinfo=utc)))
 
-        db = self.env.get_read_db()
+        # Create a custor to access the database
         cursor = db.cursor()
 
         # Get all statuses we consider to mean that the ticket is closed
         closed_statuses, types_and_statuses = self.closed_statuses_for_all_types()
 
-        # Construct a query to identify all statuses in status groups we
-        # considered closed
-        closed_status_clause = ' OR '.join('(h.type = %%s AND c.newvalue IN (%s))'
-                                      % ','.join('%s' for status in statuses)
-                                      for type_, statuses in closed_statuses.iteritems())
-
-        # This query looks in the history table to see which tickets
-        # are in the defined milestone for each date (as this list can change
-        # each day), and then looks to count how many of those tickets are
-        # closed on each date by looking in the ticket_change table
-
+        # These queries all rely on a join with the ticket_bi_historical
+        # table to see which tickets were in the defined milestone 
+        # on a given day
         try:
             if metric == 'tickets':
                 cursor.execute("""
@@ -296,7 +283,7 @@ class BurnDownCharts(Component):
                         AND t.time_started <= %s
                     GROUP BY day;
                     """, [ milestone_name, start_stamp, end_stamp ])
-            elif metric == 'story_points':
+            elif metric == 'points':
                 cursor.execute("""
                     SELECT SUM(h.effort), h._snapshottime
                     FROM ticket_bi_historical AS h
@@ -308,7 +295,7 @@ class BurnDownCharts(Component):
                         AND c.field = 'status'
                         AND (%s)
                     GROUP BY h._snapshottime;
-                    """ % closed_status_clause,
+                    """ % self.closed_status_clause(closed_statuses),
                     [milestone_name, start_stamp, end_stamp ] + types_and_statuses)
         except Exception:
             db.rollback()
@@ -318,8 +305,9 @@ class BurnDownCharts(Component):
         if metric == 'tickets':
             work_per_date = self.count_tickets_closed(cursor, closed_statuses)
         elif metric == 'hours':
-            work_per_date = [(i[1].strftime('%Y-%m-%d'), int(i[0])/float(60)/float(60)) for i in cursor]
-        elif metric == 'story_points':
+            work_per_date = [(i[1].strftime('%Y-%m-%d'),
+                              float(i[0])/60/60) for i in cursor]
+        elif metric == 'points':
             work_per_date = [(i[1], int(i[0])) for i in cursor]
 
         # Add missing dates from milestone where no tickets were closed
@@ -418,8 +406,7 @@ class BurnDownCharts(Component):
 
         This is primarily designed so we can draw the remaining effort curve
         on the burndown chart. The first tuple will always represent the first 
-        day of the milestone, so that will also be used as the original effort
-        value."""
+        day of the milestone."""
 
         self.log.debug('Querying the database for historical tickets open data')
         cursor = db.cursor()
@@ -451,9 +438,9 @@ class BurnDownCharts(Component):
             cursor.execute("""
                 SELECT _snapshottime, SUM(effort)
                 FROM ticket_bi_historical
-                WHERE milestone=%%s
-                    AND _snapshottime >=%%s
-                    AND _snapshottime <=%%s
+                WHERE milestone=%s
+                    AND _snapshottime >=%s
+                    AND _snapshottime <=%s
                     AND isclosed = 'false'
                 GROUP BY _snapshottime
                 """, [milestone_name, milestone_start, end])
@@ -586,6 +573,14 @@ class BurnDownCharts(Component):
             closed_per_date.append((date.strftime('%Y-%m-%d'), len(closed_ids)))
 
         return closed_per_date
+
+    def closed_status_clause(self, closed_statuses):
+        """Returns a SQL clause which lists all ticket types
+        and the closed statuses associated with their workflow."""
+
+        return ' OR '.join('(h.type = %%s AND c.newvalue IN (%s))'
+                            % ','.join('%s' for status in statuses)
+                            for type_, statuses in closed_statuses.iteritems())
 
     def dates_as_strings(self, dates):
         """Returns string representation of all dates in a list"""

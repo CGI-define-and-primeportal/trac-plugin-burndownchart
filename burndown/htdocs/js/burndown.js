@@ -30,7 +30,7 @@ $(document).ready(function(){
   }
 
   // Redraw the burn down if the user changes the metric
-  $('#tickets-metric, #hours-metric, #story-metric').click(function() {
+  $('#tickets-metric, #hours-metric, #points-metric').click(function() {
     show_spinner("#chart1");
     $("#burndown-spinner").css("margin-top", "100px");
     metric_value = this.id.split('-')[0];
