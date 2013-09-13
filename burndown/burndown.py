@@ -578,7 +578,10 @@ class BurnDownCharts(Component):
                     closed_ids.append(change[0])
                 # if moved from a closed status to open
                 if change[3] in closed_status_for_type and change[4] not in closed_status_for_type:
-                    closed_ids.remove(change[0])
+                    try:
+                        closed_ids.remove(change[0])
+                    except ValueError:
+                        pass
 
             # List of tuples (date, closed_count)
             closed_per_date.append((date.strftime('%Y-%m-%d'), len(closed_ids)))
