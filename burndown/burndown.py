@@ -62,9 +62,8 @@ class BurnDownCharts(Component):
         if not re.match('/milestone/[^ ]', req.path_info):
             return template, data, content_type
 
-        # Load the plugins JS file
+        # Load the burn down JS file
         add_script(req, 'burndown/js/burndown.js')
-        data['burndown'] = True # for ITemplateStreamFilter
 
         # If we don't have a start or due date for the milestone, don't
         # try and render the burndown chart
@@ -84,7 +83,7 @@ class BurnDownCharts(Component):
                                  })
             return template, data, content_type
         else:
-            add_script_data(req, {'render_burndown': 'true',
+            add_script_data(req, {'render_burndown': True,
                                   'milestone_name': milestone.name,
                                   'base_url': req.href(),
                                   })
@@ -598,7 +597,7 @@ class BurnDownCharts(Component):
 
     # ITemplateStreamFilter
     def filter_stream(self, req, method, filename, stream, data):
-        if 'burndown' in data:
+        if re.match('/milestone/[^ ]', req.path_info):
             stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(id_='chart1', class_='box-primary'))
         return stream
 

@@ -1,11 +1,8 @@
 $(document).ready(function(){
 
-  // Used to direct the AJAX calls
-  var base_url = base_url;
-
   // Request burn down chart data via Ajax
   // Use the default metric set in burndown admin panel
-  if (render_burndown == 'true') {
+  if (render_burndown == true) {
     show_spinner("#chart1");
     $.ajax({
       type: 'GET',
