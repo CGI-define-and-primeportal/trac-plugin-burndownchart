@@ -20,6 +20,7 @@ from businessintelligenceplugin.history import HistoryStorageSystem
 from logicaordertracker.controller import LogicaOrderController
 from trac.util.compat import md5
 from trac.util.presentation import to_json
+from trac.resource import ResourceNotFound
 
 # Author: Danny Milsom <danny.milsom@cgi.com>
 
@@ -41,11 +42,6 @@ class BurnDownCharts(Component):
     # IRequestFilter methods
 
     def pre_process_request(self, req, handler):
-        """Intercept POSTs to a specific milestone page"""
-
-        # Matches /milestone/<anything except whitespace>
-        if re.match('/milestone/[^ ]', req.path_info):
-            pass
         return handler
 
     def post_process_request(self, req, template, data, content_type):
@@ -56,95 +52,99 @@ class BurnDownCharts(Component):
         This method determines if we should send that AJAX call, by 
         checking the milestone has both a start and end date. If so, the 
         jqPlot JS files are loaded and the script data 'render_burndown'  
-        passed via JSON. If not, we render a chrome notice to inform the user
-        that no burndown will be generated."""
+        passed via JSON."""
 
-        if not re.match('/milestone/[^ ]', req.path_info):
-            return template, data, content_type
+        # check we are on an individual milestone page
+        if req.path_info.startswith("/milestone/") \
+            and "burndown" not in req.path_info:
 
-        # Load the burn down JS file
-        add_script(req, 'burndown/js/burndown.js')
+            milestone = self._get_milestone(req)
+            if milestone:
+                # Load the burn down JS file
+                add_script(req, 'burndown/js/burndown.js')
 
-        # If we don't have a start or due date for the milestone, don't
-        # try and render the burndown chart
-        milestone = data['milestone']
-        if not milestone.start or not milestone.due:
-            if not milestone.start and not milestone.due:
-                add_notice(req, 'Unable to generate a burndown chart as this \
-                                 milestone has no start or due date')
-            elif not milestone.start:
-                add_notice(req, 'Unable to generate a burndown chart as the \
-                                 milestone start date has not been specified')
-            elif not milestone.due:
-                add_notice(req, 'Unable to generate a burndown chart as the \
-                                 milestone due date has not been specified')
-            add_script_data(req, {'render_burndown': 'false',
-                                  'base_url': req.href(),
-                                 })
-            return template, data, content_type
-        else:
-            add_script_data(req, {'render_burndown': True,
-                                  'milestone_name': milestone.name,
-                                  'base_url': req.href(),
-                                  })
+                # If we don't have a start or due date for the milestone, don't
+                # try and render the burndown chart
+                if not milestone.start or not milestone.due:
+                    add_script_data(req, {'render_burndown': False,
+                                         })
+                    return template, data, content_type
+                # If we do, tell JS it should send a request via JSON
+                # and use the defualt effort value
+                else:
+                    add_script_data(req, {'render_burndown': True,
+                                          'milestone_name': milestone.name,
+                                          'base_url': req.href(),
+                                          'print_burndown': False,
+                                          'effort_units': self.unit_value,
+                                          })
 
-        # Add a burndown dropdown list to the context nav
-        add_ctxtnav(req, tag.div(
-                            tag.a(
-                                tag.i(class_="icon-bar-chart "),
-                            " Burndown Chart"),
-                            tag.ul(
-                                tag.li(
-                                    tag.a('Ticket Metric', href=None, id_="tickets-metric"),
-                                ),
-                                tag.li(
-                                    tag.a('Hours Metric', href=None, id_="hours-metric"),
-                                ),
-                                tag.li(
-                                    tag.a('Story Point Metric', href=None, id_="points-metric"),
-                                ),
-                                tag.li(
-                                    tag.a('Print', href=None, id_="print-burndown"),
-                                ),
-                                class_="styled-dropdown fixed-max"
-                            ),
-                            class_="dropdown-toggle inline block",
-                          )
-                    )
+                # Add a burndown unit option to the context nav
+                add_ctxtnav(req, tag.div(
+                                    tag.a(
+                                        tag.i(class_="icon-bar-chart "),
+                                    " Change Chart Units"),
+                                    tag.ul(
+                                        tag.li(
+                                            tag.a('Tickets', href=None, id_="tickets-metric"),
+                                        ),
+                                        tag.li(
+                                            tag.a('Hours', href=None, id_="hours-metric"),
+                                        ),
+                                        tag.li(
+                                            tag.a('Story Points', href=None, id_="points-metric"),
+                                        ),
+                                        class_="styled-dropdown fixed-max"
+                                    ),
+                                    class_="dropdown-toggle inline block",
+                                  )
+                            )
 
-        # Adds jqPlot library needed by burndown charts
-        add_script(req, self.get_jqplot_file('jquery.jqplot'))
-        add_stylesheet(req, 'common/js/jqPlot/jquery.jqplot.min.css')
-        add_script(req, self.get_jqplot_file('plugins/jqplot.dateAxisRenderer'))
-        add_script(req, self.get_jqplot_file('plugins/jqplot.highlighter'))
-        add_script(req, self.get_jqplot_file('plugins/jqplot.canvasTextRenderer'))
-        add_script(req, self.get_jqplot_file('plugins/jqplot.canvasAxisTickRenderer'))
-        add_script(req,
-                  self.get_jqplot_file('plugins/jqplot.canvasAxisLabelRenderer'))
-        add_script(req, self.get_jqplot_file('plugins/jqplot.enhancedLegendRenderer'))
+                # Add a print link to the context nav
+                add_ctxtnav(req, tag.a(
+                                    tag.i(class_="icon-print"),
+                                " Print", id_="print-burndown"))
+
+                # Adds jqPlot library needed by burndown charts
+                self._add_static_files(req)
 
         return template, data, content_type
 
     # IRequestHandler
 
     def match_request(self, req):
-        """Requests to this URL should only be sent via AJAX"""
-        match = re.search('/ajax/burndown/', req.path_info)
-        if match:
-            return True
+        """Requests to this URL are usually sent via AJAX or when 
+        printing the burn down chart. In both cases we expect a URL 
+        to start with /milestone/milestone_name/burndown. Its important
+        that we check to see if the the milestone exists, as another 
+        IRequestHandler opens a new milestone template when a user
+        references a non existant milestone. Additional arguments are 
+        delt with by the process_request."""
+
+        if req.path_info.startswith("/milestone/"):
+            # Check that the milestone exists
+            milestone_name = self._get_milestone(req)
+            if milestone_name:
+                return self._get_milestone(req).name + "/burndown" in req.path_info
 
     def process_request(self, req):
-        """Generate and render a burndown chart for the respective milestone"""
+        """Collect the data needed for a burndown chart and pass to JavaScript. 
+        If the original request was via AJAX we use to_json, otherwise
+        we return data via add_script_data."""
 
-        # Get milestone information
-        data = {}
-        self.log.debug('Collecting data for burndown chart')
-        milestone_name = req.args['milestone']
-        milestone = Milestone(self.env, milestone_name)
-        milestone_start = str(milestone.start.date())
-        milestone_due = str(milestone.due.date())
+        # Get milestone object
+        milestone = self._get_milestone(req)
+
+        # If anyone request milestone/milestonename/burndown not via AJAX
+        # and not with a format argument (eg when printing) , we redirect to 
+        # milestone/milestonename, as we need to load pre_process_request first
+        XMLHttp = req.get_header('X-Requested-With') == 'XMLHttpRequest'
+        if not XMLHttp and 'format' not in req.args:
+            req.redirect(req.href.milestone(milestone.name))
 
         # Calculate series of dates between a start and end date
+        milestone_start = str(milestone.start.date())
+        milestone_due = str(milestone.due.date())
         start = milestone.start.date()
         end = date.today() if date.today() <= milestone.due.date() \
               else milestone.due.date()
@@ -156,10 +156,10 @@ class BurnDownCharts(Component):
         db = self.env.get_read_db()
 
         # If no metric data is posted, use the project default self.unit_value
-        metric = req.args['metric'] if 'metric' in req.args else self.unit_value
+        metric = req.args.get('metric', self.unit_value)
 
         # Remaining Effort (aka burndown) Curve
-        remaining_effort_args = [db, milestone_name, milestone_start, end]
+        remaining_effort_args = [db, milestone.name, milestone_start, end]
         if metric == 'tickets':
             burndown_series = self.tickets_open_between_dates(*remaining_effort_args)
         elif metric == 'hours':
@@ -167,13 +167,17 @@ class BurnDownCharts(Component):
         elif metric == 'points':
             burndown_series = self.points_remaining_between_dates(*remaining_effort_args)
 
-        # If we don't have any burndown data send a message and don't go 
-        # any further
+        # If we don't have any burndown data send a message and stop
         if not burndown_series:
-            req.send(to_json({'result': 'no-data'}), 'text/json')
+            data = {'result': False}
+            # For ajax request
+            if XMLHttp:
+                req.send(to_json(data), 'text/json')
+            else:
+                return 'burndown_print.html', data, None
 
         # Team Effort Curve
-        team_effort = self.team_effort_curve(db, metric, milestone_name,
+        team_effort = self.team_effort_curve(db, metric, milestone.name,
                                                 milestone.start.date(), end, 
                                                 self.dates_as_strings(dates))
 
@@ -192,27 +196,77 @@ class BurnDownCharts(Component):
         ideal_data = self.ideal_curve(original_estimate, all_milestone_dates,
                                                              work_dates)
 
-        # Args for timeline URL
-        kwargs = {'daysback':0, 'ticket':'on', 'ticket_details': 'on',
-                  'ticket_milestone_'+ md5(milestone_name).hexdigest(): 'on'}
+        data = {
+            'burndowndata': burndown_series,
+            'workaddeddata': work_added_data,
+            'teameffortdata' : team_effort,
+            'idealcurvedata': ideal_data,
+            'milestone_name': milestone.name,
+            'start_date': milestone_start,
+            'end_date': milestone_due,
+            'effort_units': metric,
+            'yaxix_label': metric.title(),
+            'result' : True,
+        }
 
-        result = {'burndowndata': burndown_series,
-                  'workaddeddata': work_added_data,
-                  'teameffortdata' : team_effort,
-                  'idealcurvedata': ideal_data,
-                  'name': milestone_name,
-                  'start_date': milestone_start,
-                  'end_date': milestone_due,
-                  'effort_units': metric,
-                  'timeline_url': req.href.timeline(kwargs),
-                 }
+        # Ajax request
+        if XMLHttp:
+            kwargs = {  'daysback':0,
+                        'ticket':'on',
+                        'ticket_details': 'on',
+                        'ticket_milestone_'+ md5(milestone.name).hexdigest(): 'on'
+                     }
+            data.update({
+              'timeline_url': req.href.timeline(kwargs),
+              'print_burndown': False,
+              'render_burndown': True,
+            })
 
-        if 'metric' in req.args:
-            result['redraw'] = 'Yes'
+            req.send(to_json(data), 'text/json')
 
-        req.send(to_json(result), 'text/json')
+        # Normal request (eg the print friendly page)
+        else:
+            if req.args.get('format') == 'print':
+                # Load the burn down JS file and jqPlot library 
+                add_script(req, 'burndown/js/burndown.js')
+                self._add_static_files(req)
+
+                result = {'data': data,
+                          'print_burndown': True,
+                          'render_burndown': True,
+                          'result': True,
+                         }
+
+                add_script_data(req, result)
+                return 'burndown_print.html', result, None
 
     # Other methods for the class
+    def _get_milestone(self, req):
+        """Returns a milestone instance if one exists, or None if it
+        does not."""
+        milestone_name = req.path_info.split("/")[2]
+        milestone = None
+        if milestone_name:
+            try:
+                milestone = Milestone(self.env, milestone_name)
+            except ResourceNotFound:
+                milestone = None
+        return milestone
+
+    def _get_jqplot(self, filename):
+        """Quick reference to the location of jqPlot files"""
+        return "common/js/jqPlot/" + filename + ".js"
+
+    def _add_static_files(self, req):
+        """Adds all the jqPlot JS files we need for the burndown charts"""
+        add_script(req, self._get_jqplot('jquery.jqplot'))
+        add_stylesheet(req, 'common/js/jqPlot/jquery.jqplot.min.css')
+        add_script(req, self._get_jqplot('plugins/jqplot.dateAxisRenderer'))
+        add_script(req, self._get_jqplot('plugins/jqplot.highlighter'))
+        add_script(req, self._get_jqplot('plugins/jqplot.canvasTextRenderer'))
+        add_script(req, self._get_jqplot('plugins/jqplot.canvasAxisTickRenderer'))
+        add_script(req, self._get_jqplot('plugins/jqplot.canvasAxisLabelRenderer'))
+        add_script(req, self._get_jqplot('plugins/jqplot.enhancedLegendRenderer'))
 
     def team_effort_curve(self, db, metric, milestone_name, milestone_start, end, dates):
         """Returns a list of tuples, each representing the total number
@@ -587,13 +641,10 @@ class BurnDownCharts(Component):
 
         return [i.strftime('%Y-%m-%d') for i in dates]
 
-    def get_jqplot_file(self, filename):
-        return "common/js/jqPlot/" + filename + ".js"
-
     # ITemplateStreamFilter
     def filter_stream(self, req, method, filename, stream, data):
         if re.match('/milestone/[^ ]', req.path_info):
-            stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(id_='chart1', class_='box-primary'))
+            stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(id_='chart1', class_='box-primary')).after(tag.div(id_='chart2', class_=''))
         return stream
 
     # ITemplateProvider methods
