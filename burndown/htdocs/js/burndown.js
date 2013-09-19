@@ -77,9 +77,9 @@ $(document).ready(function(){
             fontFamily: 'Open Sans'
           },
           label: xaxislabel,
-          tickInterval:xaxis_interval,
-          min: data['start_date'],
-          max: data['end_date']
+          tickInterval: xaxis_interval,
+          min: new Date(data['start_date']).getTime(),
+          max: new Date(data['end_date']).getTime()
         },
         yaxis: {
           label: data['yaxix_label'],
@@ -190,8 +190,8 @@ $(document).ready(function(){
     // Expects date as a string in yyyy-mm-dd format, with a time added for 
     // greater accuracy.
     window.addTime = function(date){
-      var formatted_date = date + ' 12:01AM';
-      return formatted_date;
+      // need to pass a timestamp as the dateaxisrenderer is timezone aware
+      return new Date(date).getTime();
     };
 
     // Function which returns a two dimensional array. Each array has a 
