@@ -76,7 +76,7 @@ $(document).ready(function(){
             formatString: '%d %b',
             fontFamily: 'Open Sans'
           },
-          label: '2 days',
+          label: xaxislabel,
           tickInterval: xaxis_interval,
           min: new Date(data['start_date']).getTime(),
           max: new Date(data['end_date']).getTime()
