@@ -76,7 +76,7 @@ $(document).ready(function(){
             formatString: '%d %b',
             fontFamily: 'Open Sans'
           },
-          label: xaxislabel,
+          label: '2 days',
           tickInterval: xaxis_interval,
           min: new Date(data['start_date']).getTime(),
           max: new Date(data['end_date']).getTime()
@@ -243,12 +243,14 @@ $(document).ready(function(){
       }
     );
 
-    // Makes the jqPlot resize when the window dimensions change
-    if (!data['print_burndown']) {
-      $(window).on('debouncedresize', function() {
-        plot1.replot({ resetAxes: true });
-      });
-    }
+    // Makes the jqPlot resize when the window is resized
+    $(window).resize(function() {
+      if (!data['print_burndown']) {
+        plot1.animateReplot = false;
+        plot1.replot();
+      }
+    });
+
   }
 
   function draw_burndown_again(data, options) {
