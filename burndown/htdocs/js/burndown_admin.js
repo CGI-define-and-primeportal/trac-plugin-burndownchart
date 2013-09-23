@@ -1,6 +1,4 @@
 $(document).ready(function(){
-      // Redraw the burndown on milestone page with new metric via AJAX
-
     $('#unit-effort-question').click(function() {
       $('#unit-effort-dialog').dialog({
         title: 'More Information - Unit Effort',
