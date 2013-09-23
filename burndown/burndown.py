@@ -143,8 +143,6 @@ class BurnDownCharts(Component):
             req.redirect(req.href.milestone(milestone.name))
 
         # Calculate series of dates between a start and end date
-        milestone_start = str(milestone.start.date())
-        milestone_due = str(milestone.due.date())
         start = milestone.start.date()
         end = date.today() if date.today() <= milestone.due.date() \
               else milestone.due.date()
@@ -159,7 +157,7 @@ class BurnDownCharts(Component):
         metric = req.args.get('metric', self.unit_value)
 
         # Remaining Effort (aka burndown) Curve
-        remaining_effort_args = [db, milestone.name, milestone_start, end]
+        remaining_effort_args = [db, milestone.name, str(start), end]
         if metric == 'tickets':
             burndown_series = self.tickets_open_between_dates(*remaining_effort_args)
         elif metric == 'hours':
@@ -202,8 +200,8 @@ class BurnDownCharts(Component):
             'teameffortdata' : team_effort,
             'idealcurvedata': ideal_data,
             'milestone_name': milestone.name,
-            'start_date': milestone_start,
-            'end_date': milestone_due,
+            'start_date': str(start),
+            'end_date': str(end),
             'effort_units': metric,
             'yaxix_label': metric.title(),
             'result' : True,
