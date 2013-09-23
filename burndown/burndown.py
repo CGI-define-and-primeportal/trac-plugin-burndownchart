@@ -123,9 +123,9 @@ class BurnDownCharts(Component):
 
         if req.path_info.startswith("/milestone/"):
             # Check that the milestone exists
-            milestone_name = self._get_milestone(req)
-            if milestone_name:
-                return self._get_milestone(req).name + "/burndown" in req.path_info
+            milestone = self._get_milestone(req)
+            if milestone:
+                return milestone.name + "/burndown" in req.path_info
 
     def process_request(self, req):
         """Collect the data needed for a burndown chart and pass to JavaScript. 
