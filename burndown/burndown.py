@@ -176,7 +176,7 @@ class BurnDownCharts(Component):
 
         # Team Effort Curve
         team_effort = self.team_effort_curve(db, metric, milestone.name,
-                                                milestone.start.date(), end, 
+                                                start, end,
                                                 self.dates_as_strings(dates))
 
         # Work Added Curve
