@@ -13,13 +13,18 @@
     <h1>
       Manage Burndown Charts
     </h1>
+    <div id="about-burndown">
+      <i class="icon-info-sign"></i>
+      These options allow you to configure the default settings for burndown 
+      charts rendered on individual milestone pages. Note this is a project wide, 
+      not user specific default - however each user can switch between different
+      units of effort on the milestone page once the chart has been rendered.
+    </div>
     <div class="box-primary color-none">
-        <p>Configure these options to modify the way data is displayed 
-        on burndown charts:</p>
       <form id="burndown" action="" method="post">
         <fieldset>
           <div>
-            <label for="units" class="fixed-width-label">Units of Effort</label>
+            <label for="units" class="fixed-width-label">Units of Effort<i id="unit-effort-question" class="icon-question-sign"></i></label>
             <select name="units" form="burndown">
               <py:for each="unit in unit_options">
                 <py:choose test="">
@@ -34,22 +39,7 @@
             </select>
           </div>
           <div>
-            <label for="days" class="fixed-width-label">Working Days</label>
-            <select name="days" form="burndown">
-              <py:for each="day in day_options">
-                <py:choose test="">
-                  <py:when test="day[0] == current_day_value">
-                    <option selected="selected" value="${day[0]}">${day[1]}</option>
-                  </py:when>
-                  <py:otherwise>
-                    <option value="${day[0]}">${day[1]}</option>
-                  </py:otherwise>
-                </py:choose>
-              </py:for>
-            </select>
-          </div>
-          <div>
-            <label for="ideal" class="fixed-width-label">Ideal Curve Start</label>
+            <label for="ideal" class="fixed-width-label">Ideal Curve Start<i id="ideal-curve-question" class="icon-question-sign"></i></label>
             <select name="ideal" form="burndown">
               <py:for each="option in ideal_options">
                 <py:choose test="">
@@ -63,13 +53,28 @@
               </py:for>
             </select>
           </div>
+          <div>
+            <label for="days" class="fixed-width-label">Working Days<i id="work-day-question" class="icon-question-sign"></i></label>
+            <select name="days" form="burndown">
+              <py:for each="day in day_options">
+                <py:choose test="">
+                  <py:when test="day[0] == current_day_value">
+                    <option selected="selected" value="${day[0]}">${day[1]}</option>
+                  </py:when>
+                  <py:otherwise>
+                    <option value="${day[0]}">${day[1]}</option>
+                  </py:otherwise>
+                </py:choose>
+              </py:for>
+            </select>
+          </div>
         </fieldset>
         <button type="submit" class="btn btn-mini btn-primary" name="burndown_submit" value="Save">
           <i class="icon-hdd icon-white"></i> Save
         </button>
       </form>
     </div>
-    <div class="box-info color-none">
+    <div py:if="applicable_milestones" class="box-info color-none">
       <p>Burn down charts will only be generated for the following milestones, as 
       they have both a start and due date:</p>
       <ul>
@@ -77,6 +82,28 @@
             <li><a href="${req.href.milestone(milestone)}"> ${milestone}</a></li>
         </py:for>
       </ul>
+    </div>
+    <div id="unit-effort-dialog" class="hidden">
+      <p>When using the ticket metric, the remaining effort curve is calculated by counting 
+      the number of open tickets in a milestone on a specified date.</p>
+      <p>When using the story point metric, the remaining effort curve is calculated by summing
+      each open tickets effort value on a date specified. </p>
+      <p>When using the hours metric, the remaining effort curve is calculated by summing the 
+      estimated remaining hours value for all open tickets in the milestone on a specified date. 
+      Unlike the ticket or story point metrics, hours remaining will decrease on a daily basis 
+      when work is logged, not just when a ticket is closed.</p>
+    </div>
+    <div id="ideal-curve-dialog" class="hidden">
+      <p>The ideal curve can be used as a guideline for the rate at which the remaining effort should decrease.</p>
+      <p>If the ideal curve start value is fixed, effort added to the milestone after the start date is
+      not included.</p>
+      <p>If the ideal curve value is variable, effort added to the milestone after the start date is included in 
+      the ideal effort curve too.</p>
+    </div>
+    <div id="work-day-dialog" class="hidden">
+      When calculating the ideal curve, selection of the 'weekdays' value will result in the expectation that work 
+      will be only completed on weekdays (Monday to Friday). If you choose the alternative 'all' option, the ideal 
+      curve will include weekends in its calculations, which may lead to a misleading guideline.
     </div>
   </body>
 </html>

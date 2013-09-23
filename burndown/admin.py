@@ -1,6 +1,6 @@
 import pkg_resources
 from trac.core import *
-from trac.web.chrome import ITemplateProvider, add_notice
+from trac.web.chrome import ITemplateProvider, add_script
 from trac.admin.api import IAdminPanelProvider
 from trac.config import Option
 from trac.ticket import Milestone
@@ -66,6 +66,8 @@ class BurndownAdmin(Component):
                     'applicable_milestones' : self.milestones_with_start_and_end(),
                     }
 
+            add_script(req, 'burndown/js/burndown_admin.js')
+
             return 'burndown_admin.html', data
 
     # ITemplateProvider methods
@@ -79,7 +81,7 @@ class BurndownAdmin(Component):
 
     def milestones_with_start_and_end(self):
         db = self.env.get_db_cnx()
-        milestones = Milestone.select(self.env, 'completed', db)
 
-        return [milestone.name for milestone in milestones \
+        return [milestone.name \
+                for milestone in Milestone.select(self.env, 'completed', db) \
                 if milestone.start and milestone.due]
