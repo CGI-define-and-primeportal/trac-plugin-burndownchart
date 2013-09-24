@@ -642,7 +642,7 @@ class BurnDownCharts(Component):
     # ITemplateStreamFilter
     def filter_stream(self, req, method, filename, stream, data):
         if re.match('/milestone/[^ ]', req.path_info):
-            stream = stream | Transformer("//div[@class='row-fluid']").after(tag.div(id_='chart1', class_='box-primary')).after(tag.div(id_='chart2', class_=''))
+            stream = stream | Transformer("//*[@id='milestone-overview']").after(tag(tag.h2("Burn Down Chart"), tag.div(id_='chart1', class_='box-primary')))
         return stream
 
     # ITemplateProvider methods
