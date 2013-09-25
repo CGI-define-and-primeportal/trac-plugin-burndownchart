@@ -153,7 +153,7 @@ $(document).ready(function(){
     current_metric = metric;
     options = {
       type: 'GET',
-      url: window.tracBaseUrl + "/milestone/" + milestone_name + "/burndown",
+      url: window.tracBaseUrl + "milestone/" + milestone_name + "/burndown",
       success: function (data) {
         remove_spinner($chart);
         if (!data['result']) {
@@ -297,7 +297,7 @@ $(document).ready(function(){
   // Open a new window with a burndown chart (print friendly)
   $('#print-burndown').click(function() {
     metric_get = current_metric ? "&metric=" + current_metric : "";
-    window.open(base_url + '/milestone/' + milestone_name + '/burndown?format=print' + metric_get);
+    window.open(window.tracBaseUrl + 'milestone/' + milestone_name + '/burndown?format=print' + metric_get);
   });
 
 });
