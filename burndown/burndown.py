@@ -74,7 +74,6 @@ class BurnDownCharts(Component):
                 else:
                     add_script_data(req, {'render_burndown': True,
                                           'milestone_name': milestone.name,
-                                          'base_url': req.href(),
                                           'print_burndown': False,
                                           'effort_units': self.unit_value,
                                           })
