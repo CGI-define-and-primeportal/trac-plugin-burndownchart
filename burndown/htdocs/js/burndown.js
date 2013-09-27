@@ -169,7 +169,7 @@ $(document).ready(function(){
       }
     };
 
-    show_spinner($chart, "100px");
+    show_spinner($chart, "145px");
     if(metric) {
       $("#burndown-spinner").css("margin-top", "100px");
       options["data"] = { "metric": metric};
@@ -284,9 +284,10 @@ $(document).ready(function(){
           .html("Failed to retrieve burn down data.");
   }
 
-  function show_spinner($chart) {
+  function show_spinner($chart, marginTop) {
     $chart.addClass("center")
-          .append("<i id='burndown-spinner' class='icon-spinner icon-spin icon-4x'></i>");
+          .append("<i id='burndown-spinner' " + (marginTop ? "style='margin-top:" + marginTop + "' " : "") +
+                     "class='icon-spinner icon-spin icon-2x color-muted-dark'></i>");
   }
 
   function remove_spinner($chart) {
