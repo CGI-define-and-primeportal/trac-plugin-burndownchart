@@ -29,13 +29,8 @@ $(document).ready(function(){
     // Calculate the interval between x-axis dates (aka tickInterval)
     // 20 ticks is about right on a average sized screen
     // We plus one so that for 0.x numbers, we still get a 1 day interval
-    tick_gap = Number(String((data['idealcurvedata'].length / 20)));
-    if (tick_gap < 1) {
-      xaxis_interval = '1 day';
-    }
-    else {
-      xaxis_interval = String(tick_gap + 1).split('.')[0] + ' days';
-    }
+    tick_gap = Math.ceil(data['idealcurvedata'].length / 20);
+    xaxis_interval = tick_gap + " day" + (tick_gap == 1 ? "": "s");
 
     // Options specific to milestone or print friendly pages
     animateval = print ? false : true;
