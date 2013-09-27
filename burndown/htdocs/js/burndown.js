@@ -33,43 +33,39 @@ $(document).ready(function(){
     xaxis_interval = tick_gap + " day" + (tick_gap == 1 ? "": "s");
 
     // Options specific to milestone or print friendly pages
-    animateval = print ? false : true;
-    replotval = print ? false : true;
-    xaxislabel = print ? '' : 'Days in Milestone';
-    legendlocation = print ? 's' : 'n';
-    legendbackground = print ? '#FFF' : '#DFEEFD';
-    legendfontsize = print ? '12pt' : '8pt';
-    titletext = print ? data['milestone_name'] : '';
-    yaxislabelsize = print ? '12pt' : '10pt';
+    if(print) {
+      animateval = replotval = false;
+      xaxislabel = "";
+      legendlocation = "s";
+      legendbackground = "#FFF";
+      titletext = data['milestone_name'];
+    }
+
+    else {
+      animateval = replotval = true;
+      xaxislabel = 'Days in Milestone';
+      legendlocation = 'n';
+      legendbackground = '#DFEEFD';
+      titletext = '';
+    }
 
     // Chart options
     return {
-      gridPadding: {top:28},
       animate: animateval,
       animateReplot: replotval,
       grid: {
         shadow: false,
-        background: '#FFFFFF'
+        background: '#FFF',
+        borderWidth:1,
+        borderColor: '#AAA',
+        shadow:false
       },
-      axesDefaults: {
-        tickRenderer: $.jqplot.CanvasAxisTickRenderer,
-        tickOptions: {
-          fontFamily: 'Open Sans',
-          fontSize: '8pt',
-          textColor: '#555555'
-        },
-        labelOptions: {
-          textColor: '#555555',
-          fontFamily: 'Open Sans',
-          fontSize: '9pt'
-        }
-      },
+      gridPadding: { top:50 },
       axes: {
         xaxis: {
           renderer:$.jqplot.DateAxisRenderer,
           tickOptions:{
-            formatString: '%d %b',
-            fontFamily: 'Open Sans'
+            formatString: '%d %b'
           },
           label: xaxislabel,
           tickInterval: xaxis_interval,
@@ -78,21 +74,15 @@ $(document).ready(function(){
         },
         yaxis: {
           label: data['yaxix_label'],
-          min: 0,
-          labelRenderer: $.jqplot.CanvasAxisLabelRenderer,
-          labelOptions: {
-            fontSize: yaxislabelsize
-          },
+          min: 0
         }
       },
       highlighter: {
         show: true,
-        tooltipAxes: 'both',
         sizeAdjust: 7.5,
-        fadeTooltip: true,
-        tooltipFadeSpeed: 'fast',
         tooltipAxes: 'xy',
-        formatString: '%s - %s ' + data['effort_units']
+        tooltipLocation: "n",
+        formatString: "%s &mdash; %s " + data['effort_units']
         },
       series:[
               {
@@ -104,42 +94,35 @@ $(document).ready(function(){
                 shadow: false
               },
               {
-                color:'#23932C',
                 label: 'Remaining effort',
+                color:'#23932C',
                 showMarker: false,
                 shadow: false
               },
               {
                 label:'Team effort',
-                showMarker: false,
                 color: '#FFD600',
+                showMarker: false,
                 shadow: false
               },
               {
                 label:'Work added',
-                showMarker: false,
                 color: '#0066CC',
+                showMarker: false,
                 shadow: false
               }
              ],
       legend: {
+        xoffset: 0,
         renderer: $.jqplot.EnhancedLegendRenderer,
         show: true,
-        placement: 'outside',
-        location: legendlocation,
-        fontSize: legendfontsize,
-        textColor: '#555555',
-        background: legendbackground,
-        border: 0,
         rendererOptions: {
           numberRows: 1
-        }
+        },
+        placement: 'outside',
+        location: legendlocation
       },
-      title: {
-        text: titletext,
-        fontFamily: 'Open Sans',
-        fontSize: '14pt'
-      }
+      title: { text: titletext }
     };
   }
 
