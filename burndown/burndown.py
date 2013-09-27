@@ -257,7 +257,7 @@ class BurnDownCharts(Component):
     def _add_static_files(self, req):
         """Adds all the jqPlot JS files we need for the burndown charts"""
         add_script(req, self._get_jqplot('jquery.jqplot'))
-        add_stylesheet(req, 'common/js/jqPlot/jquery.jqplot.min.css')
+        add_stylesheet(req, 'common/js/jqPlot/jquery.jqplot.css')
         add_script(req, self._get_jqplot('plugins/jqplot.dateAxisRenderer'))
         add_script(req, self._get_jqplot('plugins/jqplot.highlighter'))
         add_script(req, self._get_jqplot('plugins/jqplot.canvasTextRenderer'))
@@ -641,7 +641,7 @@ class BurnDownCharts(Component):
     # ITemplateStreamFilter
     def filter_stream(self, req, method, filename, stream, data):
         if re.match('/milestone/[^ ]', req.path_info):
-            stream = stream | Transformer("//*[@id='milestone-overview']").after(tag(tag.h2("Burn Down Chart"), tag.div(id_='chart1', class_='box-primary')))
+            stream = stream | Transformer("//*[@id='milestone-overview']").after(tag(tag.h2("Burn Down Chart"), tag.div(id_='milestone-burndown', class_='milestone-info')))
         return stream
 
     # ITemplateProvider methods

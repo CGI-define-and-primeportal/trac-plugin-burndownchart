@@ -1,12 +1,12 @@
 $(document).ready(function(){
 
   var current_metric = "",
-           chartName = "chart1",
+           chartName = "milestone-burndown",
               $chart = $("#"+chartName);
 
   if(!window.render_burndown) {
     // No start or end date so don't try and render the burndown chart
-    $("#chart1").attr("class", "box-info center")
+    $chart.attr("class", "box-info center")
                 .html("To generate a burn down chart for this milestone, " +
                       "please set a start and due date.");
   }
