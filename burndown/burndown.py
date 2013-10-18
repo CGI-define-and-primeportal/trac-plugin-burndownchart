@@ -439,7 +439,7 @@ class BurnDownCharts(Component):
                 WHERE milestone=%s
                     AND _snapshottime >=%s
                     AND _snapshottime <=%s
-                    AND isclosed = 'false'
+                    AND isclosed = 0
                 GROUP BY _snapshottime
                 ORDER BY _snapshottime ASC
                 """, [milestone_name, milestone_start, end])
@@ -468,7 +468,7 @@ class BurnDownCharts(Component):
                 WHERE milestone=%s
                     AND _snapshottime >=%s
                     AND _snapshottime <=%s
-                    AND isclosed = 'false'
+                    AND isclosed = 0
                 GROUP BY _snapshottime
                 ORDER BY _snapshottime ASC
                 """, [milestone_name, milestone_start, end])
@@ -492,7 +492,7 @@ class BurnDownCharts(Component):
                 WHERE milestone=%s
                     AND _snapshottime >=%s
                     AND _snapshottime <=%s
-                    AND isclosed = 'false'
+                    AND isclosed = 0
                 GROUP BY _snapshottime
                 """, [milestone_name, milestone_start, end])
         except Exception:
