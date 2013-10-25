@@ -82,7 +82,7 @@ class BurnDownCharts(Component):
                 add_ctxtnav(req, tag.div(
                                     tag.a(
                                         tag.i(class_="icon-bar-chart "),
-                                    " Change Chart Units"),
+                                    " Units"),
                                     tag.ul(
                                         tag.li(
                                             tag.a('Tickets', href=None, id_="tickets-metric"),
