@@ -56,7 +56,8 @@ class BurnDownCharts(Component):
 
         # check we are on an individual milestone page
         if req.path_info.startswith("/milestone/") \
-            and "burndown" not in req.path_info:
+            and "burndown" not in req.path_info \
+            and "action" not in req.args:
 
             milestone = self._get_milestone(req)
             if milestone:
