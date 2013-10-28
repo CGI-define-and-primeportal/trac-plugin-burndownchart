@@ -345,30 +345,31 @@ class BurnDownCharts(Component):
                     """.format(','.join(('%s',)*len(milestone_names))), milestone_names + [start_stamp, end_stamp])
             elif metric == 'points':
                 cursor.execute("""
-                    SELECT SUM(h.effort), h._snapshottime
+                    SELECT h.id,
+                           h._snapshottime,
+                           h.type,
+                           c.oldvalue,
+                           c.newvalue,
+                           h.effort
                     FROM ticket_bi_historical AS h
                     JOIN ticket_change AS c ON h.id = c.ticket
                         AND h._snapshottime = (timestamp with time zone 'epoch' + c.time/1000000 * INTERVAL '1 second')::date
-                    WHERE h.milestone = %%s
-                        AND c.time >= %%s
-                        AND c.time <= %%s
+                    WHERE h.milestone IN ({0})
+                        AND c.time >= %s
+                        AND c.time <= %s
                         AND c.field = 'status'
-                        AND (%s)
-                    GROUP BY h._snapshottime;
-                    """ % self.closed_status_clause(closed_statuses),
-                    [milestone_names, start_stamp, end_stamp ] + types_and_statuses)
+                    """.format(','.join(('%s',)*len(milestone_names))), milestone_names + [start_stamp, end_stamp])
         except Exception:
             db.rollback()
             self.log.exception('Unable to query the historical ticket table')
             return []
 
-        if metric == 'tickets':
-            work_per_date = self.count_tickets_closed(cursor, closed_statuses)
-        elif metric == 'hours':
+        if metric == 'hours':
             work_per_date = [(i[1].strftime('%Y-%m-%d'),
                               float(i[0])/60/60) for i in cursor]
-        elif metric == 'points':
-            work_per_date = [(i[1], int(i[0])) for i in cursor]
+        else:
+            # must be tickets or story points
+            work_per_date = self.count_tickets_closed(cursor, closed_statuses, metric)
 
         # Add missing dates from milestone where no tickets were closed
         set_of_dates = set([i[0] for i in work_per_date])
@@ -503,7 +504,7 @@ class BurnDownCharts(Component):
                     AND _snapshottime <=%s
                     AND isclosed = 0
                 GROUP BY _snapshottime
-                """.format(','.join(('%s',)*len(milestone_names))), milestone_names [milestone_start, end])
+                """.format(','.join(('%s',)*len(milestone_names))), milestone_names + [milestone_start, end])
         except Exception:
             db.rollback()
             self.log.exception('Unable to query the historical ticket table')
@@ -602,7 +603,7 @@ class BurnDownCharts(Component):
 
         return ideal_data
 
-    def count_tickets_closed(self, cursor, closed_statuses):
+    def count_tickets_closed(self, cursor, closed_statuses, metric):
         """This is used to render the work logged curve, and counts 
         the number of tickets moved from an open to closed 
         status on a given day. If a ticket is re-opened
@@ -614,12 +615,13 @@ class BurnDownCharts(Component):
         # change[1] is date changed
         # change[2] is ticket type
         # change[3] is old status value
-        # change[4] is new status value"""
+        # change[4] is new status value
+        # change[5] is effort value (only for story point metric)"""
 
-        closed_per_date = []
         # Group changes by date
         for date, changes in groupby(cursor, itemgetter(1)):
             closed_ids = []
+            effort = {}
             for change in changes:
                 # Get all closed statuses for ticket type
                 closed_status_for_type = closed_statuses[change[2]]
@@ -627,15 +629,28 @@ class BurnDownCharts(Component):
                 # if moved from an open to closed status
                 if change[3] not in closed_status_for_type and change[4] in closed_status_for_type:
                     closed_ids.append(change[0])
+
+                    # keep track of story point values for each ticket
+                    if len(effort) >= 5 and change[0] not in effort:
+                        effort[change[0]] = effort[5]
+
                 # if moved from a closed status to open
                 if change[3] in closed_status_for_type and change[4] not in closed_status_for_type:
+                    # remove id from our list
                     try:
                         closed_ids.remove(change[0])
                     except ValueError:
                         pass
+                    # remove story points from the effort dict too
+                    del effort[change[0]]
 
-            # List of tuples (date, closed_count)
-            closed_per_date.append((date.strftime('%Y-%m-%d'), len(closed_ids)))
+            closed_per_date = []
+            if metric =='tickets':
+                # List of tuples (date, closed_count)
+                closed_per_date.append((date.strftime('%Y-%m-%d'), len(closed_ids)))
+            elif metric == 'story_points':
+                # List of tuples (date, total of effort for all closed tickets)
+                closed_per_date.append((date.strftime('%Y-%m-%d'), sum(effort.values())))
 
         return closed_per_date
 
