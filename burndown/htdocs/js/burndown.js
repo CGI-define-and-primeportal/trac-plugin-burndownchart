@@ -6,8 +6,8 @@ $(document).ready(function(){
 
   if(!window.render_burndown) {
     // No start or end date so don't try and render the burndown chart
-    $chart.attr("class", "box-info center")
-                .html("To generate a burn down chart for this milestone, " +
+    $chart.attr("class", "no-data milestone-info")
+                .html("<i class='icon-info-sign'></i> To generate a burn down chart for this milestone, " +
                       "please set a start and due date.");
   }
   else if(window.print_burndown) {
@@ -258,8 +258,8 @@ $(document).ready(function(){
   }
 
   function burndown_fail($chart) {
-    $chart.attr("class", "box-info center")
-          .html("Failed to retrieve burn down data.");
+    $chart.attr("class", "no-data milestone-info")
+          .html("<i class='icon-info-sign'></i> Failed to retrieve burn down data.");
   }
 
   function show_spinner($chart, marginTop) {
