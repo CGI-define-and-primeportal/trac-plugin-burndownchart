@@ -132,16 +132,10 @@ class BurnDownCharts(Component):
         If the original request was via AJAX we use to_json, otherwise
         we return data via add_script_data."""
 
-        def get_tree(parent):
-            """Recursive function that gets all children of a parent milestone."""
-            all_milestones.append(parent.name)
-            for child in parent.select(self.env):
-                get_tree(child)
-
         # Get milestone object and all child milestones
         milestone = self._get_milestone(req)
-        all_milestones = list()
-        get_tree(milestone)
+        tree = Milestone.build_tree(self.env)
+        all_milestones = list(tree.find(milestone.name).traverse())
 
         # If anyone request milestone/milestonename/burndown not via AJAX
         # and not with a format argument (eg when printing) , we redirect to 
