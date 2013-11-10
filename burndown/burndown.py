@@ -135,7 +135,7 @@ class BurnDownCharts(Component):
         # Get milestone object and all child milestones
         milestone = self._get_milestone(req)
         tree = Milestone.build_tree(self.env)
-        all_milestones = list(tree.find(milestone.name).traverse())
+        all_milestones = [m.name for m in tree.find(milestone.name).traverse()]
 
         # If anyone request milestone/milestonename/burndown not via AJAX
         # and not with a format argument (eg when printing) , we redirect to 
