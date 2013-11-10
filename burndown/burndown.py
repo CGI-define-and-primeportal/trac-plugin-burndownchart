@@ -625,8 +625,9 @@ class BurnDownCharts(Component):
                     closed_ids.append(change[0])
 
                     # keep track of story point values for each ticket
-                    if len(effort) >= 5 and change[0] not in effort:
-                        effort[change[0]] = effort[5]
+                    if len(change) >= 6 and change[0] not in effort:
+                        # use id for key, points for the value
+                        effort[change[0]] = change[5]
 
                 # if moved from a closed status to open
                 if change[3] in closed_status_for_type and change[4] not in closed_status_for_type:
