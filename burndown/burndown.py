@@ -146,9 +146,12 @@ class BurnDownCharts(Component):
 
         # Calculate series of dates between a start and end date
         start = milestone.start.date()
-        end = date.today() if date.today() <= milestone.due.date() \
-              else milestone.due.date()
-        dates = self.dates_inbetween(start, end)
+        if date.today() <= milestone.due.date():
+            end = date.today()
+            dates = self.dates_inbetween(start, end - timedelta(days=1))
+        else:
+            end = milestone.due.date()
+            dates = self.dates_inbetween(start, end)
         all_milestone_dates = self.dates_inbetween(start, milestone.due.date())
 
         # Open a database connection
