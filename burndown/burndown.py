@@ -203,7 +203,7 @@ class BurnDownCharts(Component):
             'idealcurvedata': ideal_data,
             'milestone_name': milestone.name,
             'start_date': str(start),
-            'end_date': str(end),
+            'end_date': str(milestone.due.date()),
             'effort_units': metric,
             'yaxix_label': metric.title(),
             'result' : True,
