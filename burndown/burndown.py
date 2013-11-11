@@ -613,6 +613,7 @@ class BurnDownCharts(Component):
         # change[5] is effort value (only for story point metric)"""
 
         # Group changes by date
+        closed_per_date = []
         for date, changes in groupby(cursor, itemgetter(1)):
             closed_ids = []
             effort = {}
@@ -639,7 +640,6 @@ class BurnDownCharts(Component):
                     # remove story points from the effort dict too
                     del effort[change[0]]
 
-            closed_per_date = []
             if metric =='tickets':
                 # List of tuples (date, closed_count)
                 closed_per_date.append((date.strftime('%Y-%m-%d'), len(closed_ids)))
