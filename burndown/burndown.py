@@ -634,13 +634,14 @@ class BurnDownCharts(Component):
 
                 # if moved from a closed status to open
                 if change[3] in closed_status_for_type and change[4] not in closed_status_for_type:
-                    # remove id from our list
+                    # remove id from our list and story points from effort
                     try:
                         closed_ids.remove(change[0])
-                    except ValueError:
+                        del effort[change[0]]
+                    except (ValueError, KeyError):
+                        # we don't catch worry about these exceptions as
+                        # sometimes the ticket wont be in closed_ids or effort
                         pass
-                    # remove story points from the effort dict too
-                    del effort[change[0]]
 
             if metric =='tickets':
                 # List of tuples (date, closed_count)
