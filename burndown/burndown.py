@@ -532,8 +532,7 @@ class BurnDownCharts(Component):
         # Note that if the remaining diff is negative, we use zero value
         # see https://d4.define.logica.com/ticket/3727
 
-        return [(remaining[0], remaining[1] + logged[1]) if remaining[1] + logged[1] >= 0
-                else (remaining[0], 0)
+        return [(remaining[0], max(0, remaining[1] + logged[1]))
                 for remaining, logged
                 in zip(remaining_difference,sorted(logged_data, key=itemgetter(0)))]
 
