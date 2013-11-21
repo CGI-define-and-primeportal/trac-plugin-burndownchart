@@ -1,6 +1,6 @@
 import pkg_resources
 from trac.core import *
-from trac.web.chrome import ITemplateProvider, add_script
+from trac.web.chrome import ITemplateProvider, add_script, add_notice
 from trac.admin.api import IAdminPanelProvider
 from trac.config import Option
 from trac.ticket import Milestone
