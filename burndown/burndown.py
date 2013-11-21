@@ -598,8 +598,7 @@ class BurnDownCharts(Component):
 
         for date in self.dates_as_strings(dates):
             if date in set(working_dates_str):
-                ideal_for_date = original_estimate -
-                                 (work_per_day*works_days)
+                ideal_for_date = original_estimate - (work_per_day*work_days)
                 ideal_data.append((date, ideal_for_date))
                 work_days += 1
             else:
