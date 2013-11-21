@@ -104,13 +104,13 @@ $(document).ready(function(){
                 color: '#FFD600',
                 showMarker: false,
                 shadow: false
-              },
-              {
+              }
+              /*{
                 label:'Work added',
                 color: '#0066CC',
                 showMarker: false,
                 shadow: false
-              }
+              }*/
              ],
       legend: {
         xoffset: 0,
@@ -187,11 +187,12 @@ $(document).ready(function(){
     burndowncurve = dataSeries(data['burndowndata']);
     teameffortcurve = dataSeries(data['teameffortdata']);
     idealcurve = dataSeries(data['idealcurvedata']);
-    addedcurve = dataSeries(data['workaddeddata']);
+    // we aren't calculating added curve right now #3850
+    //addedcurve = dataSeries(data['workaddeddata']);
 
     // Render the jqPlot burn down chart
     window.plot1 = $.jqplot(chartName,
-                            [idealcurve, burndowncurve, teameffortcurve, addedcurve],
+                            [idealcurve, burndowncurve, teameffortcurve],
                             options);
 
     // Makes the data points clickable, redirecting the user to the timeline
@@ -236,11 +237,12 @@ $(document).ready(function(){
     burndowncurve = dataSeries(data['burndowndata']);
     teameffortcurve = dataSeries(data['teameffortdata']);
     idealcurve = dataSeries(data['idealcurvedata']);
-    addedcurve = dataSeries(data['workaddeddata']);
+    // we aren't calculating added curve right now #3850
+    //addedcurve = dataSeries(data['workaddeddata']);
 
     $chart.html("");
     window.plot1 = $.jqplot(chartName,
-                            [idealcurve, burndowncurve, teameffortcurve, addedcurve],
+                            [idealcurve, burndowncurve, teameffortcurve],
                             options);
   }
 

@@ -184,7 +184,9 @@ class BurnDownCharts(Component):
                                                 self.dates_as_strings(dates))
 
         # Work Added Curve
-        work_added_data = self.work_added(burndown_series, team_effort)
+        # We don't calculate this right now as the algorithm only works
+        # when using a ticket metric - see #3850
+        #work_added_data = self.work_added(burndown_series, team_effort)
 
         # Ideal Curve (unit value doesnt matter)
         if self.ideal_value == 'fixed':
@@ -200,7 +202,7 @@ class BurnDownCharts(Component):
 
         data = {
             'burndowndata': burndown_series,
-            'workaddeddata': work_added_data,
+             #'workaddeddata': work_added_data,
             'teameffortdata' : team_effort,
             'idealcurvedata': ideal_data,
             'milestone_name': milestone.name,
