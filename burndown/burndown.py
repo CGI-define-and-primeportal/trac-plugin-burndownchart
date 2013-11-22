@@ -354,6 +354,7 @@ class BurnDownCharts(Component):
                         AND c.time >= %s
                         AND c.time <= %s
                         AND c.field = 'status'
+                    ORDER BY h._snapshottime
                     """.format(','.join(('%s',)*len(milestone_names))), milestone_names + [start_stamp, end_stamp])
         except Exception:
             db.rollback()
