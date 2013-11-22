@@ -589,13 +589,20 @@ class BurnDownCharts(Component):
         work_per_day = float(original_estimate) / (len(working_dates) -1)
         working_dates_str = self.dates_as_strings(working_dates)
         ideal_data = []
+        work_days = 0
+        # we set ideal_for_date and last_day_amount to original estimate
+        # to handle cases when the first day in the milestone is a weekend
+        ideal_for_date = last_day_amount = original_estimate
 
-        for i, date in enumerate(self.dates_as_strings(dates)):
+        for date in self.dates_as_strings(dates):
             if date in set(working_dates_str):
-                ideal_data.append((date, original_estimate - 
-                                (work_per_day*working_dates_str.index(date))))
+                ideal_for_date = original_estimate - (work_per_day*work_days)
+                ideal_data.append((date, ideal_for_date))
+                work_days += 1
             else:
-                ideal_data.append((date, ideal_data[i-1][1]))
+                ideal_data.append((date, last_day_amount))
+
+            last_day_amount = ideal_for_date
 
         return ideal_data
 
