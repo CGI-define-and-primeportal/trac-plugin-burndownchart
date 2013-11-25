@@ -69,8 +69,9 @@ $(document).ready(function(){
           },
           label: xaxislabel,
           tickInterval: xaxis_interval,
-          min: new Date(data['start_date']).getTime(),
-          max: new Date(data['end_date']).getTime()
+          // IE8 can't handle yyyy-mm-dd
+          min: $.datepicker.parseDate( "yy-mm-dd", data['start_date'] ).getTime(),
+          max: $.datepicker.parseDate( "yy-mm-dd", data['end_date'] ).getTime()
         },
         yaxis: {
           label: data['yaxix_label'],
@@ -166,10 +167,11 @@ $(document).ready(function(){
 
   function draw_burndown_first(data, options) {
     // Expects date as a string in yyyy-mm-dd format, with a time added for 
-    // greater accuracy.
+    // greater accuracy. We use jQuery datepicker to create the date time object
+    // as IE8 can't cope with yyyy-mm-dd
     window.addTime = function(date){
       // need to pass a timestamp as the dateaxisrenderer is timezone aware
-      return new Date(date).getTime();
+      return $.datepicker.parseDate( "yy-mm-dd", date ).getTime();
     };
 
     // Function which returns a two dimensional array. Each array has a 
