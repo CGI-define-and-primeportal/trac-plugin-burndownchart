@@ -162,6 +162,8 @@ class BurnDownCharts(Component):
 
         # Remaining Effort (aka burndown) Curve
         remaining_effort_args = [db, all_milestones, str(start), end]
+
+        burndown_series = []
         if metric == 'tickets':
             burndown_series = self.tickets_open_between_dates(*remaining_effort_args)
         elif metric == 'hours':
