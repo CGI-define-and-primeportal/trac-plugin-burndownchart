@@ -267,6 +267,8 @@ class BurnDownCharts(Component):
         """Adds all the jqPlot JS files we need for the burndown charts"""
         add_script(req, self._get_jqplot('jquery.jqplot'))
         add_stylesheet(req, 'common/js/jqPlot/jquery.jqplot.css')
+        # excanvas is needed for IE8 support
+        add_script(req, self._get_jqplot('excanvas.min'))
         add_script(req, self._get_jqplot('plugins/jqplot.dateAxisRenderer'))
         add_script(req, self._get_jqplot('plugins/jqplot.highlighter'))
         add_script(req, self._get_jqplot('plugins/jqplot.canvasTextRenderer'))
