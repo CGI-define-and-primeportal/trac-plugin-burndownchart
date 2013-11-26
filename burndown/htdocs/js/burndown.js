@@ -156,6 +156,25 @@ $(document).ready(function(){
     $.ajax(options);
   }
 
+  // Expects date as a string in yyyy-mm-dd format, with a time added for 
+  // greater accuracy. We use jQuery datepicker to create the date time object
+  // as IE8 can't cope with yyyy-mm-dd
+  function addTime(date){
+    // need to pass a timestamp as the dateaxisrenderer is timezone aware
+    return $.datepicker.parseDate( "yy-mm-dd", date ).getTime();
+  }
+
+  // Function which returns a two dimensional array. Each array has a 
+  // date and value, with the value reflecting some kind of work either 
+  // remaining or completed on that day
+  function dataSeries(curvedata){
+    var series_data = [];
+    for (var i=0; i < curvedata.length; i++) {
+      series_data.push([addTime(curvedata[i][0]), curvedata[i][1]]);
+    }
+    return series_data;
+  }
+
   function draw_burndown(data, options, is_first) {
     if(is_first) {
       draw_burndown_first(data, options);
@@ -166,24 +185,6 @@ $(document).ready(function(){
   }
 
   function draw_burndown_first(data, options) {
-    // Expects date as a string in yyyy-mm-dd format, with a time added for 
-    // greater accuracy. We use jQuery datepicker to create the date time object
-    // as IE8 can't cope with yyyy-mm-dd
-    window.addTime = function(date){
-      // need to pass a timestamp as the dateaxisrenderer is timezone aware
-      return $.datepicker.parseDate( "yy-mm-dd", date ).getTime();
-    };
-
-    // Function which returns a two dimensional array. Each array has a 
-    // date and value, with the value reflecting some kind of work either 
-    // remaining or completed on that day
-    window.dataSeries = function(curvedata){
-      var series_data = [];
-      for (var i=0; i < curvedata.length; i++) {
-        series_data.push([addTime(curvedata[i][0]), curvedata[i][1]]);
-      }
-      return series_data;
-    };
 
     // Curve data needed for jqPlot series
     burndowncurve = dataSeries(data['burndowndata']);
