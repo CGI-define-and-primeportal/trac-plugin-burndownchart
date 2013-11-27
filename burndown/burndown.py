@@ -679,7 +679,17 @@ class BurnDownCharts(Component):
     # ITemplateStreamFilter
     def filter_stream(self, req, method, filename, stream, data):
         if re.match('/milestone/[^ ]', req.path_info):
-            stream = stream | Transformer("//*[@id='milestone-overview']").after(tag(tag.h2("Burn Down Chart"), tag.div(id_='milestone-burndown', class_='milestone-info')))
+            help_page_url = req.href.help('DefineGuide', 'DefineAgile', 'BurndownCharts')
+            stream = stream | Transformer("//*[@id='milestone-overview']").after(tag(
+                                                                                    tag.h2("Burn Down Chart ", 
+                                                                                        tag.a(
+                                                                                            tag.i(class_="icon-question-sign color-muted", id_="burndown_more_info"), 
+                                                                                        href=help_page_url, target="_blank")
+                                                                                        ), 
+                                                                                    tag.div(id_='milestone-burndown', class_='milestone-info')
+                                                                                    )
+                                                                                )
+
         return stream
 
     # ITemplateProvider methods
