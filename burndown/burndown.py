@@ -597,6 +597,7 @@ class BurnDownCharts(Component):
         except ZeroDivisionError:
             # the milestone is only 1 day long
             work_per_day = original_estimate
+        working_dates_str = self.dates_as_strings(working_dates)
         ideal_data = []
         work_days = 0
         # we set ideal_for_date and last_day_amount to original estimate
