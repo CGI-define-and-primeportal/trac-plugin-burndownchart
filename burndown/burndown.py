@@ -592,8 +592,11 @@ class BurnDownCharts(Component):
         Also calls the dates_as_strings method first so the returned list 
         can be passed straight to JSON."""
 
-        work_per_day = float(original_estimate) / (len(working_dates) -1)
-        working_dates_str = self.dates_as_strings(working_dates)
+        try:
+            work_per_day = float(original_estimate) / (len(working_dates) -1)
+        except ZeroDivisionError:
+            # the milestone is only 1 day long
+            work_per_day = original_estimate
         ideal_data = []
         work_days = 0
         # we set ideal_for_date and last_day_amount to original estimate
