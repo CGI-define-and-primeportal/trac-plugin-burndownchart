@@ -96,13 +96,13 @@ $(document).ready(function(){
               },
               {
                 label: 'Remaining effort',
-                color:'#23932C',
+                color:'#06C',
                 showMarker: false,
                 shadow: false
               },
               {
                 label:'Team effort',
-                color: '#FFD600',
+                color: '#23932C',
                 showMarker: false,
                 shadow: false
               }
