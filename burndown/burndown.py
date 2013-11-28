@@ -129,7 +129,12 @@ class BurnDownCharts(Component):
     def process_request(self, req):
         """Collect the data needed for a burndown chart and pass to JavaScript. 
         If the original request was via AJAX we use to_json, otherwise
-        we return data via add_script_data."""
+        we return data via add_script_data.
+
+        Remember that our data reflects how a project looked at the end of a 
+        day - so if the ticket_bi_historical table has 20 opens tickets on 
+        the 1st December, that were 20 open tickets at the end of that day.
+        """
 
         # Get milestone object and all child milestones
         milestone = self._get_milestone(req)
@@ -145,13 +150,17 @@ class BurnDownCharts(Component):
 
         # Calculate series of dates between a start and end date
         start = milestone.start.date()
+        # we need the day before start if we want to show the work done 
+        # between the start and end of the first day
+        day_before_start = start - timedelta(days=1)
         if date.today() <= milestone.due.date():
             end = date.today()
-            dates = self.dates_inbetween(start, end - timedelta(days=1))
+            dates = self.dates_inbetween(day_before_start, end - timedelta(days=1))
         else:
             end = milestone.due.date()
-            dates = self.dates_inbetween(start, end)
-        all_milestone_dates = self.dates_inbetween(start, milestone.due.date())
+            dates = self.dates_inbetween(day_before_start, end)
+        # we count the day before as a milestone date (its ploted on the chart)
+        all_milestone_dates = self.dates_inbetween(day_before_start, milestone.due.date())
 
         # Open a database connection
         self.log.debug('Connecting to the database to retrieve chart data')
@@ -161,7 +170,7 @@ class BurnDownCharts(Component):
         metric = req.args.get('metric', self.unit_value)
 
         # Remaining Effort (aka burndown) Curve
-        remaining_effort_args = [db, all_milestones, str(start), end]
+        remaining_effort_args = [db, all_milestones, day_before_start, end]
 
         burndown_series = []
         if metric == 'tickets':
@@ -182,7 +191,7 @@ class BurnDownCharts(Component):
 
         # Team Effort Curve
         team_effort = self.team_effort_curve(db, metric, all_milestones,
-                                                start, end,
+                                                day_before_start, end,
                                                 self.dates_as_strings(dates))
 
         # Work Added Curve
@@ -208,7 +217,7 @@ class BurnDownCharts(Component):
             'teameffortdata' : team_effort,
             'idealcurvedata': ideal_data,
             'milestone_name': milestone.name,
-            'start_date': str(start),
+            'start_date': str(day_before_start),
             'end_date': str(milestone.due.date()),
             'effort_units': metric,
             'yaxix_label': metric.title(),
@@ -550,16 +559,31 @@ class BurnDownCharts(Component):
         return [start + timedelta(days=i) for i in xrange((end - start).days + 1)]
 
     def get_date_values(self, all_dates):
-        """Returns all working and non-working days in a milestone"""
+        """Returns all working and non-working days in a milestone.
+
+        The day before the start date is always included in list list and 
+        considered a working day. We need to take this assumption otherwise 
+        the ideal curve would not decrease by the end of milestone start date. 
+        """
 
         if self.day_value == 'all':
-            working_dates = all_dates
+            working_dates = all_dates[:]
             non_working_dates = []
         elif self.day_value == 'weekdays':
             working_dates, non_working_dates = self.working_days(all_dates)
         elif self.day_value == 'custom':
             working_dates, non_working_dates = self.working_days(all_dates,
                                                             blacklisted_dates)
+
+        # we always want the day before the milestone starts to be a working day
+        # regardless if it is a weekday or weekend
+        # if it was a non working day the ideal effort curve would not decrease
+        # by the end of the actual start date
+        day_before = all_dates[0]
+        if day_before not in working_dates:
+            non_working_dates.remove(day_before)
+            working_dates.insert(0, day_before)
+        # else it must be in working dates already
 
         return working_dates, non_working_dates
 
@@ -589,11 +613,16 @@ class BurnDownCharts(Component):
         if the team is to finish all the work in a milestone/sprint by the
         due date, taking into account non working days.
 
+        The first date is always one day before the actual milestone start 
+        date, so users can see how much work was performed between the end 
+        of the day before the milestone started, and the end of the first
+        actual day. 
+
         Also calls the dates_as_strings method first so the returned list 
         can be passed straight to JSON."""
 
         try:
-            work_per_day = float(original_estimate) / (len(working_dates) -1)
+            work_per_day = float(original_estimate) / (len(working_dates) - 1)
         except ZeroDivisionError:
             # the milestone is only 1 day long
             work_per_day = original_estimate
