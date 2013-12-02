@@ -18,7 +18,6 @@ from trac.env import IEnvironmentSetupParticipant
 from componentdependencies import IRequireComponents
 from businessintelligenceplugin.history import HistoryStorageSystem
 from logicaordertracker.controller import LogicaOrderController
-from trac.util.compat import md5
 from trac.util.presentation import to_json
 from trac.resource import ResourceNotFound
 
@@ -229,7 +228,7 @@ class BurnDownCharts(Component):
             kwargs = {  'daysback':0,
                         'ticket':'on',
                         'ticket_details': 'on',
-                        'ticket_milestone_'+ md5(milestone.name).hexdigest(): 'on'
+                        'ticket_milestone_%s' % Milestone._hash_name(milestone.name): 'on'
                      }
             data.update({
               'timeline_url': req.href.timeline(kwargs),
