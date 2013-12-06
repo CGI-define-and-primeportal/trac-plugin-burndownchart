@@ -5,10 +5,12 @@ $(document).ready(function(){
               $chart = $("#"+chartName);
 
   if(!window.render_burndown) {
-    // No start or end date so don't try and render the burndown chart
+    // No start date and can't estimate start so don't try and render the burndown chart
     $chart.attr("class", "no-data milestone-info")
-                .html("<i class='icon-info-sign'></i> To generate a burn down chart for this milestone, " +
-                      "please set a start and due date.");
+                .html("<i class='icon-info-sign'></i> As of yesterday " +
+                      "no tickets were associated with this milestone. " + 
+                      "No burn down chart will be generated until it has " +
+                      "ticket data to display.");
   }
   else if(window.print_burndown) {
     // Render print friendly burn down on seperate page
@@ -22,6 +24,26 @@ $(document).ready(function(){
     $('#tickets-metric, #hours-metric, #points-metric').click(function() {
       get_and_draw_burndown($(this).attr("id").split("-")[0]);
     });
+  }
+
+  // to encourage the use of start and end dates we put the opacity at 0.6
+  // and show a message to users which is hidden upon mouseover
+  if (approx_start_date) {
+      $.jqplot.postDrawHooks.push(start_message_warning)
+      $chart.mouseover(remove_opacity);
+  }
+
+  function start_message_warning(approx_start_date) {
+    $chart.css("opacity",0.6).addClass("center");
+    $chart.append("<div id='no-start-date'><div> " +
+                "Please set a start date for this milestone. In the meantime we " +
+                "have estimated one for you.</div></div>")
+  }
+
+  function remove_opacity() {
+    // remove the opacity css attribute and hide the message div
+    $chart.css("opacity", 1);
+    $("#no-start-date").addClass("hidden");
   }
 
   function burndown_options(data, print) {
@@ -132,6 +154,7 @@ $(document).ready(function(){
     current_metric = metric;
     options = {
       type: 'GET',
+      data: {},
       url: window.tracBaseUrl + "milestone/" + milestone_name + "/burndown",
       success: function (data) {
         remove_spinner($chart);
@@ -151,7 +174,10 @@ $(document).ready(function(){
     show_spinner($chart, "145px");
     if(metric) {
       $("#burndown-spinner").css("margin-top", "100px");
-      options["data"] = { "metric": metric};
+      options["data"]["metric"] = metric;
+    }
+    if (approx_start_date) {
+      options["data"]["approx_start_date"] = approx_start_date;
     }
     $.ajax(options);
   }

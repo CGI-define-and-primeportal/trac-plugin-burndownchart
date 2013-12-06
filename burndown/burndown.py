@@ -62,20 +62,30 @@ class BurnDownCharts(Component):
                 # Load the burn down JS file
                 add_script(req, 'burndown/js/burndown.js')
 
-                # If we don't have a start or due date for the milestone, don't
-                # try and render the burndown chart
-                if not milestone.start or not milestone.due:
-                    add_script_data(req, {'render_burndown': False,
-                                         })
-                    return template, data, content_type
-                # If we do, tell JS it should send a request via JSON
-                # and use the defualt effort value
+                if milestone.start:
+                    approx_start_date = False
                 else:
-                    add_script_data(req, {'render_burndown': True,
-                                          'milestone_name': milestone.name,
-                                          'print_burndown': False,
-                                          'effort_units': self.unit_value,
-                                          })
+                    # no milestone start value so try and estimate start date
+                    approx_start_date = self.guess_start_date(milestone)
+                    if not approx_start_date:
+                        # no milestone start or estimated start date
+                        # dont show a burn down chart
+                        add_script_data(req, {'render_burndown': False,
+                                              'approx_start_date': approx_start_date,
+                                              })
+                        return template, data, content_type
+
+                # If we do have a start date (explicit or implied), 
+                # tell JS it should send a request via JSON and use 
+                # the defualt effort value
+                add_script_data(req, {
+                                        'render_burndown': True,
+                                        'milestone_name': milestone.name,
+                                        'print_burndown': False,
+                                        'effort_units': self.unit_value,
+                                        'approx_start_date': approx_start_date,
+                                      })
+                                       
 
                 # Add a burndown unit option to the context nav
                 add_ctxtnav(req, tag.div(
@@ -148,18 +158,12 @@ class BurnDownCharts(Component):
             req.redirect(req.href.milestone(milestone.name))
 
         # Calculate series of dates between a start and end date
-        start = milestone.start.date()
-        # we need the day before start if we want to show the work done 
-        # between the start and end of the first day
+        start = self.get_start_date(req, milestone)
+        end = self.get_end_date(milestone)
         day_before_start = start - timedelta(days=1)
-        if date.today() <= milestone.due.date():
-            end = date.today()
-            dates = self.dates_inbetween(day_before_start, end - timedelta(days=1))
-        else:
-            end = milestone.due.date()
-            dates = self.dates_inbetween(day_before_start, end)
-        # we count the day before as a milestone date (its ploted on the chart)
-        all_milestone_dates = self.dates_inbetween(day_before_start, milestone.due.date())
+        dates = self.dates_inbetween(day_before_start, end)
+        # we count the day before as milestone date, but a non working one
+        all_milestone_dates = self.dates_inbetween(day_before_start, end)
 
         # Open a database connection
         self.log.debug('Connecting to the database to retrieve chart data')
@@ -217,11 +221,17 @@ class BurnDownCharts(Component):
             'idealcurvedata': ideal_data,
             'milestone_name': milestone.name,
             'start_date': str(day_before_start),
-            'end_date': str(milestone.due.date()),
             'effort_units': metric,
             'yaxix_label': metric.title(),
             'result' : True,
         }
+
+        # we need some logic to work out the end date - if there is a 
+        # end date set we use that, else we use yesterday
+        if milestone.due:
+            data['end_date'] =  milestone.due.date().strftime("%Y-%m-%d")
+        else:
+            data['end_date'] = end.strftime("%Y-%m-%d")
 
         # Ajax request
         if XMLHttp:
@@ -267,6 +277,33 @@ class BurnDownCharts(Component):
                 milestone = None
         return milestone
 
+    def guess_start_date(self, milestone):
+        """
+        Looks in the ticket_bi_historical table and for the first date a ticket 
+        is assigned to the milestone. If the query returns a date, we use 
+        that for our approx_start_date. 
+
+        We do this so we can show users useful data even if a milestone has 
+        no start date.
+        """
+
+        db = self.env.get_read_db()
+        cursor = db.cursor()
+        cursor.execute("""
+            SELECT _snapshottime
+            FROM ticket_bi_historical
+            WHERE milestone = %s
+            ORDER BY _snapshottime ASC
+            """, [milestone.name])
+
+        res = cursor.fetchone()
+        if res:
+            try:
+                return res[0].strftime('%Y-%m-%d')
+            except AttributeError as e:
+                self.log(e)
+        return False
+
     def _get_jqplot(self, filename):
         """Quick reference to the location of jqPlot files"""
         return "common/js/jqPlot/" + filename + ".js"
@@ -283,6 +320,41 @@ class BurnDownCharts(Component):
         add_script(req, self._get_jqplot('plugins/jqplot.canvasAxisTickRenderer'))
         add_script(req, self._get_jqplot('plugins/jqplot.canvasAxisLabelRenderer'))
         add_script(req, self._get_jqplot('plugins/jqplot.enhancedLegendRenderer'))
+
+    def get_start_date(self, req, milestone):
+        """
+        Returns the start date, which we use as the first coordiante 
+        on the x-axis of burn down charts.
+
+        If the milestone has a start date set, we use this value.
+
+        If not we try and predicate this date, so can display some useful 
+        data to users. We look to see if there is a approx_start_date var 
+        in req.arg_list. If truthy, this  date is the first time a ticket 
+        is assigned to the milestone according to the ticket_bi_historical_table.
+        See the post_process_request in this component.
+        """
+
+        if milestone.start:
+            return milestone.start.date()
+        elif 'approx_start_date' in req.args:
+            return datetime.strptime(req.args['approx_start_date'], '%Y-%m-%d').date() + timedelta(days=1)
+
+    def get_end_date(self, milestone):
+        """
+        Returns the end date, which we use as the last coordinate on the 
+        x-axis of burn down charts.
+
+        If we have milestone due date and that is in the past, use that. 
+        Otherwise use yesterdays date. We use yesterday not today as the 
+        history capture script only collects information at the end of each day.
+        """
+
+        if milestone.due:
+            if milestone.due.date() < date.today():
+                return milestone.due.date()
+        # else we take yesterday to be the end date point for the x-axis
+        return date.today() - timedelta(days=1)
 
     def team_effort_curve(self, db, metric, milestone_names, milestone_start, end, dates):
         """Returns a list of tuples, each representing the total number
