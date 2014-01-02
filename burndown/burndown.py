@@ -267,14 +267,26 @@ class BurnDownCharts(Component):
     # Other methods for the class
     def _get_milestone(self, req):
         """Returns a milestone instance if one exists, or None if it
-        does not."""
-        milestone_name = req.path_info.split("/")[2]
+        does not.
+
+        Because milestone names can contain forward slashes, splitting the URL 
+        on these characters and taking the third item from the URL path 
+        is not sufficent to guess the milestone name. Instead we have to join 
+        the URL and attempt to find matching milestone name by iterating 
+        through the split path until we either exhaust the items or 
+        find a matching milestone."""
+
+        split_path = req.path_info.split("/")[2:]
         milestone = None
-        if milestone_name:
+
+        for i, elem in enumerate(split_path):
+            milestone_name = "/".join(split_path[:i+1])
             try:
                 milestone = Milestone(self.env, milestone_name)
+                break
             except ResourceNotFound:
                 milestone = None
+
         return milestone
 
     def guess_start_date(self, milestone):
