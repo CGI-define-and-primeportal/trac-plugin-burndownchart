@@ -128,12 +128,6 @@ $(document).ready(function(){
                 showMarker: false,
                 shadow: false
               }
-              /*{
-                label:'Work added',
-                color: '#0066CC',
-                showMarker: false,
-                shadow: false
-              }*/
              ],
       legend: {
         xoffset: 0,
@@ -216,8 +210,6 @@ $(document).ready(function(){
     burndowncurve = dataSeries(data['burndowndata']);
     teameffortcurve = dataSeries(data['teameffortdata']);
     idealcurve = dataSeries(data['idealcurvedata']);
-    // we aren't calculating added curve right now #3850
-    //addedcurve = dataSeries(data['workaddeddata']);
 
     // Render the jqPlot burn down chart
     window.plot1 = $.jqplot(chartName,
@@ -266,8 +258,6 @@ $(document).ready(function(){
     burndowncurve = dataSeries(data['burndowndata']);
     teameffortcurve = dataSeries(data['teameffortdata']);
     idealcurve = dataSeries(data['idealcurvedata']);
-    // we aren't calculating added curve right now #3850
-    //addedcurve = dataSeries(data['workaddeddata']);
 
     $chart.html("");
     window.plot1 = $.jqplot(chartName,

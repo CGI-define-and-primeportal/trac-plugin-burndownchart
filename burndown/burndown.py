@@ -197,18 +197,9 @@ class BurnDownCharts(Component):
                                                 day_before_start, end,
                                                 self.dates_as_strings(dates))
 
-        # Work Added Curve
-        # We don't calculate this right now as the algorithm only works
-        # when using a ticket metric - see #3850
-        #work_added_data = self.work_added(burndown_series, team_effort)
-
         # Ideal Curve (unit value doesnt matter)
         if self.ideal_value == 'fixed':
             original_estimate = burndown_series[0][1]
-        # If we want to include work added after the start date
-        # in the ideal curve
-        elif self.ideal_value == 'variable':
-            original_estimate = burndown_series[0][1] + sum([added[1] for added in work_added_data])
 
         work_dates, non_work_dates = self.get_date_values(all_milestone_dates)
         ideal_data = self.ideal_curve(original_estimate, all_milestone_dates,
@@ -216,7 +207,6 @@ class BurnDownCharts(Component):
 
         data = {
             'burndowndata': burndown_series,
-             #'workaddeddata': work_added_data,
             'teameffortdata' : team_effort,
             'idealcurvedata': ideal_data,
             'milestone_name': milestone.name,
