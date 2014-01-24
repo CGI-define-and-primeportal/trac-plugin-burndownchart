@@ -70,14 +70,12 @@ class BurnDownCharts(Component):
                     if not approx_start_date:
                         # no milestone start or estimated start date
                         # dont show a burn down chart
-                        add_script_data(req, {'render_burndown': False,
-                                              'approx_start_date': approx_start_date,
-                                              })
+                        add_script_data(req, {'render_burndown': False})
                         return template, data, content_type
 
                 # If we do have a start date (explicit or implied), 
                 # tell JS it should send a request via JSON and use 
-                # the defualt effort value
+                # the default effort value
                 add_script_data(req, {
                                         'render_burndown': True,
                                         'milestone_name': milestone.name,
@@ -225,10 +223,10 @@ class BurnDownCharts(Component):
 
         # Ajax request
         if XMLHttp:
-            kwargs = {  'daysback':0,
-                        'ticket':'on',
-                        'ticket_details': 'on',
-                        'ticket_milestone_%s' % Milestone._hash_name(milestone.name): 'on'
+            kwargs = { 'daysback':0,
+                       'ticket':'on',
+                       'ticket_details': 'on',
+                       'ticket_milestone_%s' % Milestone._hash_name(milestone.name): 'on'
                      }
             data.update({
               'timeline_url': req.href.timeline(kwargs),
@@ -281,7 +279,9 @@ class BurnDownCharts(Component):
 
     def guess_start_date(self, milestone):
         """
-        Looks in the ticket_bi_historical table and for the first date a ticket 
+        Approximates a start date if a milestone has no start date explicitly set.
+
+        We looks in the ticket_bi_historical table for the first date a ticket 
         is assigned to the milestone. If the query returns a date, we use 
         that for our approx_start_date. 
 
@@ -296,6 +296,7 @@ class BurnDownCharts(Component):
             FROM ticket_bi_historical
             WHERE milestone = %s
             ORDER BY _snapshottime ASC
+            LIMIT 1
             """, [milestone.name])
 
         res = cursor.fetchone()
@@ -304,7 +305,6 @@ class BurnDownCharts(Component):
                 return res[0].strftime('%Y-%m-%d')
             except AttributeError as e:
                 self.log(e)
-        return False
 
     def _get_jqplot(self, filename):
         """Quick reference to the location of jqPlot files"""
@@ -352,8 +352,7 @@ class BurnDownCharts(Component):
         history capture script only collects information at the end of each day.
         """
 
-        if milestone.due:
-            if milestone.due.date() < date.today():
+        if milestone.due and milestone.due.date() < date.today():
                 return milestone.due.date()
         # else we take yesterday to be the end date point for the x-axis
         return date.today() - timedelta(days=1)
