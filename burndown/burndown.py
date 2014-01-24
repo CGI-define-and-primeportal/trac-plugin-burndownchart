@@ -281,7 +281,7 @@ class BurnDownCharts(Component):
         """
         Approximates a start date if a milestone has no start date explicitly set.
 
-        We looks in the ticket_bi_historical table for the first date a ticket 
+        We look in the ticket_bi_historical table for the first date a ticket 
         is assigned to the milestone. If the query returns a date, we use 
         that for our approx_start_date. 
 
@@ -353,7 +353,7 @@ class BurnDownCharts(Component):
         """
 
         if milestone.due and milestone.due.date() < date.today():
-                return milestone.due.date()
+            return milestone.due.date()
         # else we take yesterday to be the end date point for the x-axis
         return date.today() - timedelta(days=1)
 
