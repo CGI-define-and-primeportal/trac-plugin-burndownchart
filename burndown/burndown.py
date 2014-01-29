@@ -54,8 +54,8 @@ class BurnDownCharts(Component):
         passed via JSON."""
 
         # check we are on an individual milestone page
-        if req.path_info.startswith("/milestone/") \
-            and "burndown" not in req.path_info and "stats" in data:
+        if req.path_info.startswith("/milestone/") and req.args.get('id') \
+            and "stats" in data:
 
             milestone = self._get_milestone(req)
             if milestone:
@@ -121,17 +121,20 @@ class BurnDownCharts(Component):
     def match_request(self, req):
         """Requests to this URL are usually sent via AJAX or when 
         printing the burn down chart. In both cases we expect a URL 
-        to start with /milestone/milestone_name/burndown. Its important
+        to start with /burndowncharts/milestone_id. Its important
         that we check to see if the the milestone exists, as another 
         IRequestHandler opens a new milestone template when a user
         references a non existant milestone. Additional arguments are 
         delt with by the process_request."""
 
-        if req.path_info.startswith("/milestone/"):
-            # Check that the milestone exists
-            milestone = self._get_milestone(req)
-            if milestone:
-                return milestone.name + "/burndown" in req.path_info
+        match = re.match(r'/burndownchart(?:/(.+))?$', req.path_info)
+        if match:
+            if match.group(1):
+                # check that the milestone exists
+                req.args['id'] = match.group(1)
+                milestone = self._get_milestone(req)
+                if milestone:
+                    return True
 
     def process_request(self, req):
         """Collect the data needed for a burndown chart and pass to JavaScript. 
@@ -144,11 +147,12 @@ class BurnDownCharts(Component):
         """
 
         # Get milestone object and all child milestones
-        milestone = self._get_milestone(req)
+        # we already know it exists, as we checked in the match_request()
+        milestone = Milestone(self.env, req.args['id'])
         tree = Milestone.build_tree(self.env)
         all_milestones = [m.name for m in tree.find(milestone.name).traverse()]
 
-        # If anyone request milestone/milestonename/burndown not via AJAX
+        # If anyone request burndownchart/milestone_id not via AJAX
         # and not with a format argument (eg when printing) , we redirect to 
         # milestone/milestonename, as we need to load pre_process_request first
         XMLHttp = req.get_header('X-Requested-With') == 'XMLHttpRequest'
@@ -255,25 +259,13 @@ class BurnDownCharts(Component):
     # Other methods for the class
     def _get_milestone(self, req):
         """Returns a milestone instance if one exists, or None if it
-        does not.
+        does not."""
 
-        Because milestone names can contain forward slashes, splitting the URL 
-        on these characters and taking the third item from the URL path 
-        is not sufficent to guess the milestone name. Instead we have to join 
-        the URL and attempt to find matching milestone name by iterating 
-        through the split path until we either exhaust the items or 
-        find a matching milestone."""
-
-        split_path = req.path_info.split("/")[2:]
-        milestone = None
-
-        for i, elem in enumerate(split_path):
-            milestone_name = "/".join(split_path[:i+1])
-            try:
-                milestone = Milestone(self.env, milestone_name)
-                break
-            except ResourceNotFound:
-                milestone = None
+        milestone_id = req.args['id']
+        try:
+            milestone = Milestone(self.env, milestone_id)
+        except ResourceNotFound:
+            milestone = None
 
         return milestone
 
