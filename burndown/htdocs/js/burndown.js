@@ -28,7 +28,7 @@ $(document).ready(function(){
 
   // to encourage the use of start and end dates we put the opacity at 0.6
   // and show a message to users which is hidden upon mouseover
-  if (approx_start_date) {
+  if (window.approx_start_date) {
       $.jqplot.postDrawHooks.push(start_message_warning)
       $chart.mouseover(remove_opacity);
   }
