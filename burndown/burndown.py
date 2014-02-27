@@ -404,7 +404,8 @@ class BurnDownCharts(Component):
                         AND c.time <= %s
                         AND c.field = 'status'
                     ORDER BY c.time ASC
-                    """.format(','.join(('%s',)*len(milestone_names))), milestone_names + [start_stamp, end_stamp])
+                    """.format(db.parammarks(len(milestone_names))),
+                    milestone_names + [start_stamp, end_stamp])
             elif metric == 'hours':
                 cursor.execute("""
                     SELECT SUM(t.seconds_worked),
@@ -417,7 +418,8 @@ class BurnDownCharts(Component):
                         AND t.time_started >= %s
                         AND t.time_started <= %s
                     GROUP BY day;
-                    """.format(','.join(('%s',)*len(milestone_names))), milestone_names + [start_stamp, end_stamp])
+                    """.format(db.parammarks(len(milestone_names))),
+                    milestone_names + [start_stamp, end_stamp])
             elif metric == 'points':
                 cursor.execute("""
                     SELECT h.id,
@@ -434,7 +436,8 @@ class BurnDownCharts(Component):
                         AND c.time <= %s
                         AND c.field = 'status'
                     ORDER BY h._snapshottime
-                    """.format(','.join(('%s',)*len(milestone_names))), milestone_names + [start_stamp, end_stamp])
+                    """.format(db.parammarks(len(milestone_names))),
+                    milestone_names + [start_stamp, end_stamp])
         except Exception:
             db.rollback()
             self.log.exception('Unable to query the historical ticket table')
@@ -580,7 +583,8 @@ class BurnDownCharts(Component):
                     AND _snapshottime <=%s
                     AND isclosed = 0
                 GROUP BY _snapshottime
-                """.format(','.join(('%s',)*len(milestone_names))), milestone_names + [milestone_start, end])
+                """.format(db.parammarks(len(milestone_names))),
+                milestone_names + [milestone_start, end])
         except Exception:
             db.rollback()
             self.log.exception('Unable to query the historical ticket table')
