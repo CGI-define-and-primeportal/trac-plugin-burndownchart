@@ -159,13 +159,11 @@ class BurnDownCharts(Component):
         if not XMLHttp and 'format' not in req.args:
             req.redirect(req.href.milestone(milestone.name))
 
-        # Calculate series of dates between a start and end date
+        # Calculate series of dates used to render the burn down charts
         start = self.get_start_date(req, milestone)
         end = self.get_end_date(milestone)
         day_before_start = start - timedelta(days=1)
         dates = self.dates_inbetween(day_before_start, end)
-        # we count the day before as milestone date, but a non working one
-        all_milestone_dates = self.dates_inbetween(day_before_start, end)
 
         # Open a database connection
         self.log.debug('Connecting to the database to retrieve chart data')
@@ -203,9 +201,8 @@ class BurnDownCharts(Component):
         if self.ideal_value == 'fixed':
             original_estimate = burndown_series[0][1]
 
-        work_dates, non_work_dates = self.get_date_values(all_milestone_dates)
-        ideal_data = self.ideal_curve(original_estimate, all_milestone_dates,
-                                                             work_dates)
+        ideal_data = self.ideal_curve(original_estimate, day_before_start, 
+                                      self.get_due_date(milestone))
 
         data = {
             'burndowndata': burndown_series,
@@ -218,12 +215,8 @@ class BurnDownCharts(Component):
             'result' : True,
         }
 
-        # we need some logic to work out the end date - if there is a 
-        # end date set we use that, else we use yesterday
-        if milestone.due:
-            data['end_date'] =  milestone.due.date().strftime("%Y-%m-%d")
-        else:
-            data['end_date'] = end.strftime("%Y-%m-%d")
+        # we need some logic to work out the end date on the xAxis
+        data['due_date'] =  (self.get_due_date(milestone)).strftime("%Y-%m-%d")
 
         # Ajax request
         if XMLHttp:
@@ -333,6 +326,17 @@ class BurnDownCharts(Component):
             return milestone.start.date()
         elif 'approx_start_date' in req.args:
             return datetime.strptime(req.args['approx_start_date'], '%Y-%m-%d').date() + timedelta(days=1)
+
+    def get_due_date(self, milestone):
+        """
+        Returns the due date if this attribute is set for the milestone, 
+        or the estimated end date as determinded by get_end_date().
+        """
+
+        if milestone.due:
+            return milestone.due.date()
+        else:
+            return self.get_end_date(milestone)
 
     def get_end_date(self, milestone):
         """
@@ -676,7 +680,7 @@ class BurnDownCharts(Component):
 
         return work_dates, non_working_dates
 
-    def ideal_curve(self, original_estimate, dates, working_dates):
+    def ideal_curve(self, original_estimate, start, due):
         """Returns the average amount of work needed to remain on each day
         if the team is to finish all the work in a milestone/sprint by the
         due date, taking into account non working days.
@@ -689,11 +693,16 @@ class BurnDownCharts(Component):
         Also calls the dates_as_strings method first so the returned list 
         can be passed straight to JSON."""
 
+        # we count the day before as milestone date, but a non working one
+        dates = self.dates_inbetween(start, due)
+        working_dates, non_work_dates = self.get_date_values(dates)
+
         try:
             work_per_day = float(original_estimate) / (len(working_dates) - 1)
         except ZeroDivisionError:
             # the milestone is only 1 day long
             work_per_day = original_estimate
+
         working_dates_str = self.dates_as_strings(working_dates)
         ideal_data = []
         work_days = 0

@@ -93,7 +93,7 @@ $(document).ready(function(){
           tickInterval: xaxis_interval,
           // IE8 can't handle yyyy-mm-dd
           min: $.datepicker.parseDate( "yy-mm-dd", data['start_date'] ).getTime(),
-          max: $.datepicker.parseDate( "yy-mm-dd", data['end_date'] ).getTime()
+          max: $.datepicker.parseDate( "yy-mm-dd", data['due_date'] ).getTime()
         },
         yaxis: {
           label: data['yaxix_label'],
