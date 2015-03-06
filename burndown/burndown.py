@@ -88,7 +88,7 @@ class BurnDownCharts(Component):
                 # Add a burndown unit option to the context nav
                 add_ctxtnav(req, tag.div(
                                     tag.a(
-                                        tag.i(class_="icon-bar-chart "),
+                                        tag.i(class_="fa fa-bar-chart "),
                                     " Burn Down Units"),
                                     tag.ul(
                                         tag.li(
@@ -108,7 +108,7 @@ class BurnDownCharts(Component):
 
                 # Add a print link to the context nav
                 add_ctxtnav(req, tag.a(
-                                    tag.i(class_="icon-print"),
+                                    tag.i(class_="fa fa-print"),
                                 " Print Burn Down", id_="print-burndown"))
 
                 # Adds jqPlot library needed by burndown charts
