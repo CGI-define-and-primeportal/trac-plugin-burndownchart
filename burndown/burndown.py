@@ -795,7 +795,7 @@ class BurnDownCharts(Component):
             stream = stream | Transformer("//*[@id='milestone-overview']").after(tag(
                                                                                     tag.h2("Burn Down Chart ", 
                                                                                         tag.a(
-                                                                                            tag.i(class_="icon-question-sign color-muted", id_="burndown_more_info"), 
+                                                                                            tag.i(class_="fa fa-question-circle color-muted", id_="burndown_more_info"),
                                                                                         href=help_page_url, target="_blank")
                                                                                         ), 
                                                                                     tag.div(id_='milestone-burndown', class_='milestone-info')
