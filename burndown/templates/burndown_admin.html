@@ -14,7 +14,7 @@
       Manage Burndown Charts
     </h1>
     <div id="about-burndown">
-      <i class="icon-info-sign"></i>
+      <i class="fa fa-info-circle"></i>
       These options allow you to configure the default settings for burndown 
       charts rendered on individual milestone pages. Note this is a project wide, 
       not user specific default - however each user can switch between different
@@ -26,7 +26,7 @@
       <form id="burndown" action="" method="post">
         <fieldset>
           <div>
-            <label for="units" class="fixed-width-label">Units of Effort<i id="unit-effort-question" class="icon-question-sign"></i></label>
+            <label for="units" class="fixed-width-label">Units of Effort<i id="unit-effort-question" class="fa fa-question-circle"></i></label>
             <select name="units" form="burndown">
               <py:for each="unit in unit_options">
                 <py:choose test="">
@@ -58,7 +58,7 @@
           </div>
           -->
           <div>
-            <label for="days" class="fixed-width-label">Working Days<i id="work-day-question" class="icon-question-sign"></i></label>
+            <label for="days" class="fixed-width-label">Working Days<i id="work-day-question" class="fa fa-question-circle"></i></label>
             <select name="days" form="burndown">
               <py:for each="day in day_options">
                 <py:choose test="">
@@ -74,7 +74,7 @@
           </div>
         </fieldset>
         <button type="submit" class="btn btn-mini btn-primary" name="burndown_submit" value="Save">
-          <i class="icon-hdd icon-white"></i> Save
+          <i class="fa fa-hdd-o fa-inverse"></i> Save
         </button>
       </form>
     </div>

@@ -88,7 +88,7 @@ class BurnDownCharts(Component):
                 # Add a burndown unit option to the context nav
                 add_ctxtnav(req, tag.div(
                                     tag.a(
-                                        tag.i(class_="icon-bar-chart "),
+                                        tag.i(class_="fa fa-bar-chart "),
                                     " Burn Down Units"),
                                     tag.ul(
                                         tag.li(
@@ -108,7 +108,7 @@ class BurnDownCharts(Component):
 
                 # Add a print link to the context nav
                 add_ctxtnav(req, tag.a(
-                                    tag.i(class_="icon-print"),
+                                    tag.i(class_="fa fa-print"),
                                 " Print Burn Down", id_="print-burndown"))
 
                 # Adds jqPlot library needed by burndown charts
@@ -795,7 +795,7 @@ class BurnDownCharts(Component):
             stream = stream | Transformer("//*[@id='milestone-overview']").after(tag(
                                                                                     tag.h2("Burn Down Chart ", 
                                                                                         tag.a(
-                                                                                            tag.i(class_="icon-question-sign color-muted", id_="burndown_more_info"), 
+                                                                                            tag.i(class_="fa fa-question-circle color-muted", id_="burndown_more_info"),
                                                                                         href=help_page_url, target="_blank")
                                                                                         ), 
                                                                                     tag.div(id_='milestone-burndown', class_='milestone-info')

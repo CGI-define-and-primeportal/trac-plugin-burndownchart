@@ -7,7 +7,7 @@ $(document).ready(function(){
   if(!window.render_burndown) {
     // No start date and can't estimate start so don't try and render the burndown chart
     $chart.attr("class", "no-data milestone-info")
-                .html("<i class='icon-info-sign'></i> As of yesterday " +
+                .html("<i class='fa fa-info-circle'></i> As of yesterday " +
                       "no tickets were associated with this milestone. " + 
                       "No burn down chart will be generated until it has " +
                       "ticket data to display.");
@@ -280,13 +280,13 @@ $(document).ready(function(){
 
   function burndown_fail($chart) {
     $chart.attr("class", "no-data milestone-info")
-          .html("<i class='icon-info-sign'></i> Failed to retrieve burn down data.");
+          .html("<i class='fa fa-info-circle'></i> Failed to retrieve burn down data.");
   }
 
   function show_spinner($chart, marginTop) {
     $chart.addClass("center")
           .append("<i id='burndown-spinner' " + (marginTop ? "style='margin-top:" + marginTop + "' " : "") +
-                     "class='icon-spinner icon-spin icon-2x color-muted-dark'></i>");
+                     "class='fa fa-spinner fa-spin fa-2x color-muted-dark'></i>");
   }
 
   function remove_spinner($chart) {
