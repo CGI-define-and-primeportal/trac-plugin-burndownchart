@@ -4,7 +4,7 @@ from datetime import datetime, date, timedelta, time
 
 from trac.core import *
 from trac.web.chrome import ITemplateProvider, add_script, add_script_data, \
-                            add_stylesheet, add_ctxtnav
+                            add_stylesheet, add_notice, add_ctxtnav
 from trac.web import ITemplateStreamFilter
 from trac.ticket.model import Milestone
 from trac.web.api import IRequestFilter, IRequestHandler
